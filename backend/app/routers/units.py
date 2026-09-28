@@ -33,8 +33,8 @@ def _get_owned_unit(unit_id: int, player: Player, db: Session) -> Unit:
 
 
 def _apply_unit_payload(unit: Unit, body: UnitIn) -> None:
-    for attr in ("name", "movement", "toughness", "save", "invuln_save",
-                 "wounds", "leadership", "oc", "model_count"):
+    for attr in ("name", "faction", "points", "movement", "toughness", "save",
+                 "invuln_save", "wounds", "leadership", "oc", "model_count"):
         setattr(unit, attr, getattr(body, attr))
     unit.weapons.clear()
     for w in body.weapons:

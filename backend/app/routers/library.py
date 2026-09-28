@@ -103,6 +103,8 @@ def import_unit(
     unit = Unit(
         owner_id=player.id,
         name=mapped.name,
+        faction=mapped.faction,
+        points=mapped.points,
         movement=mapped.movement,
         toughness=mapped.toughness,
         save=mapped.save,

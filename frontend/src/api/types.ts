@@ -47,6 +47,8 @@ export interface Unit {
   id?: number;
   owner_id?: number;
   name: string;
+  faction: string;
+  points: number;
   image_path?: string | null;
   movement: number;
   toughness: number;
@@ -128,6 +130,8 @@ export function emptyWeapon(): Weapon {
 export function emptyUnit(): Unit {
   return {
     name: "",
+    faction: "",
+    points: 0,
     movement: 6,
     toughness: 4,
     save: 3,

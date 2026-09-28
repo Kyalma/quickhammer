@@ -106,6 +106,17 @@ export function UnitEditorPage() {
             placeholder="e.g. Intercessor Squad"
           />
         </div>
+        <div className="row">
+          <div className="field" style={{ flex: 2 }}>
+            <label>Faction</label>
+            <input
+              value={unit.faction}
+              onChange={(e) => patch({ faction: e.target.value })}
+              placeholder="e.g. Space Marines"
+            />
+          </div>
+          <NumberField label="Points" value={unit.points} onChange={(v) => patch({ points: v })} max={10000} />
+        </div>
         <div className="field">
           <label>Picture</label>
           {unit.image_path && (

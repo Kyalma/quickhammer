@@ -12,8 +12,11 @@ export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }
       ) : (
         <div className="placeholder">⚔</div>
       )}
-      <div>
-        <h2>{unit.name}</h2>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
+          <h2>{unit.name}</h2>
+          {unit.points > 0 && <span className="points-badge">{unit.points} pts</span>}
+        </div>
         <div className="statline">
           <span>M <b>{unit.movement}"</b></span>
           <span>T <b>{unit.toughness}</b></span>

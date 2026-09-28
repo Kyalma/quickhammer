@@ -64,6 +64,8 @@ class WeaponOut(WeaponIn):
 
 class UnitIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
+    faction: str = Field(default="", max_length=100)
+    points: int = Field(default=0, ge=0, le=10000)
     movement: int = Field(default=6, ge=0, le=30)
     toughness: int = Field(default=4, ge=1, le=16)
     save: int = Field(default=3, ge=2, le=7)

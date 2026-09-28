@@ -41,6 +41,8 @@ class Unit(Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("players.id"), index=True)
     name: Mapped[str] = mapped_column(String(100))
     image_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    faction: Mapped[str] = mapped_column(String(100), default="")
+    points: Mapped[int] = mapped_column(Integer, default=0)
 
     # 10th-edition statline
     movement: Mapped[int] = mapped_column(Integer, default=6)      # inches

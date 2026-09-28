@@ -76,8 +76,12 @@ def map_unit(data: dict[str, Any]) -> UnitIn:
     invuln_raw = data.get("invuln_save")
     invuln = _clamp(_int_from(invuln_raw, 4), 2, 6) if invuln_raw else None
 
+    points = data.get("points") or {}
+
     return UnitIn(
         name=str(data.get("name", "Imported unit")).strip()[:100],
+        faction=str(data.get("faction") or "").strip()[:100],
+        points=_clamp(_int_from(points.get("base"), 0), 0, 10000),
         movement=_clamp(_int_from(stats.get("M"), 6), 0, 30),
         toughness=_clamp(_int_from(stats.get("T"), 4), 1, 16),
         save=_clamp(_int_from(stats.get("SV"), 3), 2, 7),

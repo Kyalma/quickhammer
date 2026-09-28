@@ -36,6 +36,16 @@ FLAMERS = {
 
 
 class TestMapUnit:
+    def test_faction_and_points(self):
+        unit = map_unit(INTERCESSOR)
+        assert unit.faction == "Space Marines"
+        assert unit.points == 80
+
+    def test_missing_faction_and_points_default(self):
+        unit = map_unit({"name": "Mystery"})
+        assert unit.faction == ""
+        assert unit.points == 0
+
     def test_statline(self):
         unit = map_unit(INTERCESSOR)
         assert unit.name == "Intercessor Squad"

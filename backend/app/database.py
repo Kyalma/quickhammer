@@ -24,6 +24,8 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 # Append new entries here instead of ever wiping a live database.
 _MIGRATION_COLUMNS = [
     ("players", "is_admin", "BOOLEAN NOT NULL DEFAULT 0"),
+    ("units", "faction", "VARCHAR(100) NOT NULL DEFAULT ''"),
+    ("units", "points", "INTEGER NOT NULL DEFAULT 0"),
 ]
 
 

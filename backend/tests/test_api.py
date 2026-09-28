@@ -46,6 +46,7 @@ def register(client: TestClient, name: str) -> dict:
 
 UNIT_PAYLOAD = {
     "name": "Intercessors",
+    "faction": "Space Marines", "points": 80,
     "toughness": 4, "save": 3, "wounds": 2, "model_count": 5,
     "weapons": [{
         "name": "Bolt rifle", "kind": "ranged", "range": 24,
@@ -94,6 +95,8 @@ def test_unit_crud(client):
 
     listed = client.get("/api/units", headers=headers).json()
     assert len(listed) == 1
+    assert listed[0]["faction"] == "Space Marines"
+    assert listed[0]["points"] == 80
 
     unit["name"] = "Assault Intercessors"
     updated = client.put(f"/api/units/{unit['id']}", json=unit, headers=headers)
