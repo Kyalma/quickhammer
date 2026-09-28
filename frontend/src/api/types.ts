@@ -63,10 +63,21 @@ export interface Unit {
 
 export type GameStatus = "lobby" | "active" | "finished";
 
+/** A unit as fielded in one game. `id` is the game entry, not the roster unit. */
 export interface ArmyUnitSummary {
   id: number;
+  unit_id: number;
   name: string;
   points: number;
+  model_count: number;
+  wounds: number;
+  leadership: number;
+  models_remaining: number;
+  wounds_lost: number;
+  is_destroyed: boolean;
+  below_half_strength: boolean;
+  is_battle_shocked: boolean;
+  needs_shock_test: boolean;
 }
 
 export interface GamePlayer {
@@ -76,6 +87,15 @@ export interface GamePlayer {
   faction: string;
   army: ArmyUnitSummary[];
   army_points: number;
+  command_points: number;
+}
+
+export interface BattleShockResult {
+  unit_name: string;
+  roll: number;
+  leadership: number;
+  passed: boolean;
+  game: Game;
 }
 
 export interface GameArmy {

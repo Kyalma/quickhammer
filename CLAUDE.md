@@ -19,6 +19,8 @@ Backend (from `backend/`, venv at `backend/.venv`):
 .venv\Scripts\python.exe -m pytest tests/test_combat.py -q # one file
 .venv\Scripts\python.exe -m pytest -q -k "lethal"          # by keyword
 python -m uvicorn app.main:app --reload                    # run server (port 8000)
+.venv\Scripts\python.exe -m alembic upgrade head           # migrate (also runs on startup)
+python ..\scripts\make_admin.py <name>                     # grant admin (any CWD, any Python)
 ```
 
 Always launch uvicorn via `python -m uvicorn`, never the bare `uvicorn` command: Windows Smart App Control blocks the unsigned `uvicorn.exe` shim in the venv.
@@ -40,6 +42,15 @@ Request path: React pages → `frontend/src/api/client.ts` (fetch wrapper adding
 
 Game-state flow: there is no push channel. `usePolling` re-fetches `GET /api/games/{code}` every ~2.5 s on the lobby/game pages; every mutating game endpoint also returns the full serialized game state, and turn/phase progression logic lives in `backend/app/services/game_flow.py` (5 phases per player turn; after Fight, the turn passes; when the order wraps, the round increments). Ready-toggling auto-starts the game once 2+ players are all ready AND each has an army.
 
+Game rules implemented so far — **Command phase only** (10th edition), in `services/unit_state.py` (pure) plus `services/game_flow.py` (phase side effects):
+
+- Entering a player's Command phase grants them 1 CP and clears Battle-shock on their units (`begin_command_phase`, called from both `start_game` and `advance`).
+- Live unit condition lives on `GameUnit` as **losses, not remainders** (`models_lost`, `wounds_lost` on the lead model only), so 0 always means undamaged and migrations stay trivial. `POST /{code}/units/{id}/damage` takes signed wounds; negative heals and doubles as undo. Owner-only, mirroring removing your own models at the table.
+- Below Half-strength is **asymmetric on purpose**: single-model units qualify at *half or more wounds lost*, multi-model units at *fewer than half models remaining*, so 5 of 10 is not below half but 4 of 10 is. Tests pin both boundaries.
+- Battle-shock is a 2D6 Leadership test the **player enters manually** — the app never rolls dice. `POST /{code}/units/{id}/battle-shock` requires the Command phase, the active player, the unit's owner, a below-half non-destroyed unit, and no prior test that round (`shock_tested_round`).
+
+Not implemented: objectives/VP, Stratagems and CP spending, Desperate Escape, army-specific rules like Oath of Moment, and auto-applying combat results to unit state (the resolver returns fractional expected values).
+
 Per-game armies: a player picks ONE faction and 1+ of their units of that faction before readying up (`POST /{code}/army` with `unit_ids`; faction is derived from the units and mixing factions is a 422). Selections live in the `game_units` table via `GamePlayer.army`; replacing a selection must `db.delete` + `db.flush()` the old rows before inserting, or the unique constraint trips. The polled game state carries light summaries (`army`, `army_points`, `faction`); `GET /{code}/armies` returns full `UnitOut` data and is what CombatPage uses — only fielded units are selectable in combat, not whole rosters. Armies are locked once the game leaves lobby, and deleting a unit removes it from armies via the `Unit.game_entries` cascade.
 
 Combat math is isolated in `backend/app/services/combat.py` as pure functions with no framework or DB imports — extend keywords/rules there and unit-test in `tests/test_combat.py`. The `/api/combat/resolve` router only loads ORM rows and maps them to `AttackerProfile`/`DefenderProfile` dataclasses. Results are expected values (not dice rolls) returned as a labeled step list the UI renders verbatim.
@@ -55,7 +66,21 @@ Data conventions that cross layers:
 - Weapon keywords are a comma-separated string in the DB column, a `list[str]` everywhere else; `WeaponOut` has a before-validator doing the split. Only SUSTAINED HITS, LETHAL HITS, and TORRENT (auto-hit, disables crit keywords) affect the math; others are echoed back as ignored in result notes.
 - Save characteristics use "roll needed" ints (3 means 3+); `invuln_save` is nullable.
 
-Schema changes: `init_db()` runs `create_all()` (new tables) plus a minimal additive migration: new COLUMNS must be appended to `_MIGRATION_COLUMNS` in `backend/app/database.py` (table, column, DDL), which ALTERs existing databases on startup. Production has real user data — never instruct wiping the DB. Anything beyond adding a column (renames, drops, type changes) needs a real migration plan first.
+Schema changes go through **Alembic** (`backend/alembic/`), never `create_all` and never by wiping the DB — production holds real accounts, rosters and uploads. Workflow:
+
+```powershell
+cd backend
+.venv\Scripts\python.exe -m alembic revision --autogenerate -m "what changed"   # then REVIEW it
+.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Non-obvious rules learned the hard way:
+
+- **Autogenerate emits `NOT NULL` columns without a `server_default`**, which fails on any table that already has rows. Add `server_default` to every non-nullable column you add.
+- `env.py` sets `render_as_batch=True` because SQLite cannot alter columns in place; without it, drops/renames/type changes fail.
+- `0001_baseline` is deliberately **idempotent** (creates only missing tables, adds the four pre-Alembic columns if absent) because the app was deployed before Alembic existed. That is why startup needs no stamping. Never edit a historical revision to match current models.
+- `run_migrations()` in `database.py` builds the Alembic config in code with `script_location` resolved from `__file__`, so it works from any CWD and at `/app` in the container. It must never call `create_all`: the models run ahead of the baseline and would create future columns too early.
+- Tests set `QH_SKIP_MIGRATIONS=1` in `tests/conftest.py` and build their own schema with `create_all`; `tests/test_migrations.py` covers real upgrades in a subprocess against empty, pre-armies, and current databases.
 
 Admin: `Player.is_admin` gates `/api/admin/*` (routers/admin.py, `require_admin` dependency in auth.py) and the frontend Admin tab. Rights are granted only from a console via the location-independent launcher: `python scripts/make_admin.py <name>` (`--revoke`, `--list`) — works from any CWD and any Python (bootstraps the backend venv, chdirs to the package root so `.env`/SQLite paths resolve); same command inside the container. New console scripts follow this pattern: implementation as a module under `backend/app/`, thin bootstrap launcher in root `scripts/` (copied into the image by the Dockerfile).
 

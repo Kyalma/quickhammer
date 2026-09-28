@@ -73,33 +73,4 @@ def test_me_reports_admin_flag(client):
     assert client.get("/api/players/me", headers=headers).json()["is_admin"] is True
 
 
-def test_migration_adds_is_admin_to_legacy_table(tmp_path, monkeypatch):
-    """A database created before the is_admin column gets it added on startup."""
-    from sqlalchemy import create_engine
-
-    db_file = tmp_path / "legacy.db"
-    legacy = create_engine(f"sqlite:///{db_file}")
-    with legacy.begin() as conn:
-        conn.exec_driver_sql(
-            "CREATE TABLE players (id INTEGER PRIMARY KEY, name VARCHAR(50), "
-            "password_hash VARCHAR(200))"
-        )
-        conn.exec_driver_sql(
-            "INSERT INTO players (name, password_hash) VALUES ('Legacy', 'x')"
-        )
-    legacy.dispose()
-
-    from app import database
-
-    fresh = create_engine(f"sqlite:///{db_file}")
-    monkeypatch.setattr(database, "engine", fresh)
-    database.init_db()
-
-    with fresh.connect() as conn:
-        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(players)")}
-        assert "is_admin" in columns
-        value = conn.exec_driver_sql(
-            "SELECT is_admin FROM players WHERE name='Legacy'"
-        ).scalar()
-        assert value == 0  # existing players are not admins
-    fresh.dispose()
+# Migrations of pre-Alembic databases are covered in tests/test_migrations.py.

@@ -215,6 +215,27 @@ label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-botto
   accent-color: var(--accent);
 }
 
+/* --- Live unit state ----------------------------------------------------- */
+
+.unit-state {
+  border-top: 1px solid var(--border);
+  padding: 0.6rem 0 0.35rem;
+}
+
+.unit-state:first-of-type { border-top: none; }
+
+.unit-state-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.3rem;
+}
+
+.ready-pill.danger-pill { background: var(--danger); color: var(--text); }
+
+.struck { text-decoration: line-through; color: var(--text-dim); }
+
 .link-button {
   background: none;
   border: none;

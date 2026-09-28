@@ -88,9 +88,13 @@ frontend/
    of its units. Confirm it, then Ready up.
 5. When everyone is ready the game starts. Phases per player turn:
    Command → Movement → Shooting → Charge → Fight
-6. In Shooting / Fight, open the **Combat** resolver: pick your unit + weapon vs an enemy unit
+6. Record casualties on your own units as they happen, using the **Your army** panel.
+7. In your **Command phase** you gain a Command Point, any Battle-shock on your units wears
+   off, and every unit below half strength must take a Battle-shock test. Roll 2D6 on the table
+   and type the total; the app applies the result and tracks the consequences.
+8. In Shooting / Fight, open the **Combat** resolver: pick your unit + weapon vs an enemy unit
    and get the full expected-value breakdown (hits → wounds → failed saves → damage → models slain).
-   Only units fielded for that game are selectable.
+   Only units fielded for that game are selectable, and destroyed units are greyed out.
 
 ## Deployment (Docker → Unraid → Cloudflare Tunnel)
 
@@ -151,9 +155,9 @@ docker push <dockerhub-user>/quickhammer:latest; docker push <dockerhub-user>/qu
 Then Unraid Docker tab → the container shows an update → **apply/force update**.
 The `/data` volume is untouched, so accounts, rosters, and pictures survive.
 
-> Adding new columns is safe: startup applies additive migrations automatically
-> (see `_MIGRATION_COLUMNS` in `backend/app/database.py`). Bigger schema changes
-> (renames, drops) still need a real migration plan before shipping.
+> Database changes are handled by Alembic and run automatically when the container
+> starts, so your data survives updates. Databases created before Alembic was added
+> are upgraded in place, no manual step needed.
 
 ### Admin
 
@@ -175,17 +179,21 @@ games with their status (Pending / Running / Done).
 
 ## Status & roadmap
 
-Working today: profiles, roster with picture upload, OpenHammer datasheet import,
-game sessions (create / join / ready / auto-start), phase & turn tracking for 2–4 players,
-and the expected-value combat resolver with SUSTAINED HITS, LETHAL HITS, and TORRENT support.
+Working today: profiles, roster with picture upload grouped by faction with points totals,
+OpenHammer datasheet import, game sessions (create / join / pick a faction and army / ready /
+auto-start), phase & turn tracking for 2–4 players, casualty tracking, the **Command phase**
+(command points and Battle-shock tests), the expected-value combat resolver with SUSTAINED HITS,
+LETHAL HITS and TORRENT, an admin view, Docker deployment and Alembic migrations.
 
 Not built yet (ideas, in rough priority order):
 
 ### In-game features
-- Wound / casualty tracking on units during a game
-- Dice-roll mode (actual rolls instead of expected values)
+- Rules for the other four phases (Movement, Shooting, Charge, Fight)
+- Objective markers and victory points
+- Stratagems and spending command points
 - More weapon keywords (DEVASTATING WOUNDS, BLAST, RAPID FIRE, ANTI-X…)
-- Points display / army list totals
+- Feeding combat results straight into casualty tracking
+- Dice-roll mode for combat (actual rolls instead of expected values)
 
 ### Web-app features
 - Password reset, HTTPS, deployment

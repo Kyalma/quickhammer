@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { factionLabel, PHASES, type Game } from "../api/types";
 import { ArmySelector } from "../components/ArmySelector";
+import { ArmyStatusPanel } from "../components/ArmyStatusPanel";
+import { CommandPhasePanel } from "../components/CommandPhasePanel";
 import { PhaseTracker } from "../components/PhaseTracker";
 import { useAuth } from "../context/AuthContext";
 import { usePolling } from "../hooks/usePolling";
@@ -123,6 +125,10 @@ export function GamePage() {
       </p>
       <PhaseTracker current={game.current_phase} />
 
+      {me && isMyTurn && phaseName === "Command" && (
+        <CommandPhasePanel code={game.code} me={me} onChange={setGame} />
+      )}
+
       {combatPhase && (
         <Link to={`/games/${game.code}/combat`}>
           <button className="primary" style={{ width: "100%", marginBottom: "1rem" }}>
@@ -137,6 +143,8 @@ export function GamePage() {
         </button>
       )}
 
+      {me && <ArmyStatusPanel code={game.code} me={me} onChange={setGame} />}
+
       <div className="card" style={{ marginTop: "1rem" }}>
         <h2>Players</h2>
         {game.players.map((gp) => (
@@ -145,9 +153,9 @@ export function GamePage() {
             {gp.player.id === game.active_player_id && " ← active"}
             <span className="note">
               {" "}
-              — {factionLabel(gp.faction)}, {gp.army.length} unit
-              {gp.army.length === 1 ? "" : "s"}
-              {gp.army_points > 0 && <> · {gp.army_points} pts</>}
+              — {factionLabel(gp.faction)}, {gp.army.filter((u) => !u.is_destroyed).length}/
+              {gp.army.length} unit{gp.army.length === 1 ? "" : "s"} left
+              {gp.army_points > 0 && <> · {gp.army_points} pts</>} · {gp.command_points} CP
             </span>
           </p>
         ))}

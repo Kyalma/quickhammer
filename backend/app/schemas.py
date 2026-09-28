@@ -89,11 +89,26 @@ class UnitOut(UnitIn):
 # --- Games -----------------------------------------------------------------
 
 class ArmyUnitSummary(BaseModel):
-    """Lightweight entry for the polled game state."""
+    """Lightweight entry for the polled game state, including live condition.
+
+    `id` is the GameUnit id (this unit in this game), not the roster Unit id.
+    """
 
     id: int
+    unit_id: int
     name: str
     points: int
+    # Profile, so the UI can render "4 / 10 models" without another request.
+    model_count: int
+    wounds: int
+    leadership: int
+    # Live state.
+    models_remaining: int
+    wounds_lost: int
+    is_destroyed: bool
+    below_half_strength: bool
+    is_battle_shocked: bool
+    needs_shock_test: bool
 
 
 class GamePlayerOut(BaseModel):
@@ -103,6 +118,27 @@ class GamePlayerOut(BaseModel):
     faction: str = ""
     army: list[ArmyUnitSummary] = []
     army_points: int = 0
+    command_points: int = 0
+
+
+class ApplyWoundsIn(BaseModel):
+    """Positive damages the unit, negative heals and doubles as undo."""
+
+    wounds: int = Field(ge=-100, le=100)
+
+
+class BattleShockIn(BaseModel):
+    """The 2D6 total the player physically rolled."""
+
+    roll: int = Field(ge=2, le=12)
+
+
+class BattleShockResult(BaseModel):
+    unit_name: str
+    roll: int
+    leadership: int
+    passed: bool
+    game: "GameOut"
 
 
 class SetArmyIn(BaseModel):

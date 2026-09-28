@@ -109,6 +109,8 @@ class GamePlayer(Base):
     turn_order: Mapped[int] = mapped_column(Integer, default=0)
     # The single faction this player brings to the game ("" = Unaligned).
     faction: Mapped[str] = mapped_column(String(100), default="")
+    # Gained at the start of each of this player's Command phases.
+    command_points: Mapped[int] = mapped_column(Integer, default=0)
 
     game: Mapped[Game] = relationship(back_populates="players")
     player: Mapped[Player] = relationship()
@@ -126,6 +128,15 @@ class GameUnit(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     game_player_id: Mapped[int] = mapped_column(ForeignKey("game_players.id"), index=True)
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"), index=True)
+
+    # Live battlefield state. Losses are stored rather than remainders so that
+    # zero always means "undamaged", which keeps migrations trivial.
+    models_lost: Mapped[int] = mapped_column(Integer, default=0)
+    # Damage on the current lead model only, never a whole model's worth.
+    wounds_lost: Mapped[int] = mapped_column(Integer, default=0)
+    is_battle_shocked: Mapped[bool] = mapped_column(default=False)
+    # Round in which a Battle-shock test was taken, to block re-tests.
+    shock_tested_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     game_player: Mapped[GamePlayer] = relationship(back_populates="army")
     unit: Mapped[Unit] = relationship(back_populates="game_entries")

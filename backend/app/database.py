@@ -1,5 +1,7 @@
-"""SQLAlchemy engine, session factory, and FastAPI dependency."""
+"""SQLAlchemy engine, session factory, migrations, and FastAPI dependency."""
+import os
 from collections.abc import Generator
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -19,33 +21,42 @@ engine = create_engine(
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-# Columns added after the first release. create_all() only creates missing
-# TABLES, so existing production databases need an ALTER for new columns.
-# Append new entries here instead of ever wiping a live database.
-_MIGRATION_COLUMNS = [
-    ("players", "is_admin", "BOOLEAN NOT NULL DEFAULT 0"),
-    ("units", "faction", "VARCHAR(100) NOT NULL DEFAULT ''"),
-    ("units", "points", "INTEGER NOT NULL DEFAULT 0"),
-    ("game_players", "faction", "VARCHAR(100) NOT NULL DEFAULT ''"),
-]
+def _alembic_config():
+    """Alembic config built in code so it works from any working directory,
+    both in the repo (backend/alembic) and in the container (/app/alembic)."""
+    from alembic.config import Config
+
+    config = Config()
+    config.set_main_option("script_location", str(Path(__file__).resolve().parent.parent / "alembic"))
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
+    return config
 
 
-def _ensure_columns() -> None:
+def run_migrations() -> None:
+    """Bring the database to the latest revision, preserving existing data.
+
+    Works on an empty database and on one created before Alembic existed: the
+    baseline revision is idempotent, so it fills in whatever is missing instead
+    of needing to be stamped. Never uses create_all, because the models drift
+    ahead of the baseline and would create future columns too early.
+    """
+    from alembic import command
+
+    from . import models  # noqa: F401  (register models with Base)
+
+    config = _alembic_config()
+    # Share our connection so in-memory and single-file engines both work.
     with engine.begin() as conn:
-        for table, column, ddl in _MIGRATION_COLUMNS:
-            existing = {
-                row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")
-            }
-            if existing and column not in existing:
-                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        config.attributes["connection"] = conn
+        command.upgrade(config, "head")
 
 
 def init_db() -> None:
-    """Create all tables and apply additive column migrations. Called on startup."""
-    from . import models  # noqa: F401  (register models with Base)
-
-    Base.metadata.create_all(bind=engine)
-    _ensure_columns()
+    """Startup hook. Set QH_SKIP_MIGRATIONS=1 to bypass (tests manage their
+    own schema and must not touch the real database)."""
+    if os.environ.get("QH_SKIP_MIGRATIONS") == "1":
+        return
+    run_migrations()
 
 
 def get_db() -> Generator[Session, None, None]:

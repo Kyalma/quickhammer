@@ -15,12 +15,29 @@ def all_ready(game: Game) -> bool:
     )
 
 
+def membership(game: Game, player_id: int | None) -> GamePlayer | None:
+    for gp in game.players:
+        if gp.player_id == player_id:
+            return gp
+    return None
+
+
+def begin_command_phase(game_player: GamePlayer) -> None:
+    """Command step effects for the player whose turn is beginning: gain 1 CP,
+    and Battle-shock inflicted on their units last turn wears off."""
+    game_player.command_points += 1
+    for entry in game_player.army:
+        entry.is_battle_shocked = False
+
+
 def start_game(game: Game) -> None:
     """Move a lobby to active: first player (by join order) takes the first turn."""
     game.status = GameStatus.active
     game.current_phase = 0
     game.current_round = 1
-    game.active_player_id = game.players[0].player_id
+    first = game.players[0]
+    game.active_player_id = first.player_id
+    begin_command_phase(first)
 
 
 def advance(game: Game) -> None:
@@ -42,3 +59,5 @@ def advance(game: Game) -> None:
     game.active_player_id = ids[next_index]
     if next_index == 0:
         game.current_round += 1
+    # The new active player's Command phase starts immediately.
+    begin_command_phase(order[next_index])

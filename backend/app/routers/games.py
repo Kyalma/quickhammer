@@ -8,9 +8,12 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_player
 from ..database import get_db
-from ..models import Game, GamePlayer, GameStatus, GameUnit, Player, Unit
+from ..models import PHASES, Game, GamePlayer, GameStatus, GameUnit, Player, Unit
 from ..schemas import (
+    ApplyWoundsIn,
     ArmyUnitSummary,
+    BattleShockIn,
+    BattleShockResult,
     GameArmyOut,
     GameOut,
     GamePlayerOut,
@@ -18,11 +21,39 @@ from ..schemas import (
     SetArmyIn,
     UnitOut,
 )
-from ..services import game_flow
+from ..services import game_flow, unit_state
 
 router = APIRouter(prefix="/api/games", tags=["games"])
 
 MAX_PLAYERS = 4
+COMMAND_PHASE = PHASES.index("Command")
+
+
+def _summarize_unit(entry: GameUnit, game: Game) -> ArmyUnitSummary:
+    unit = entry.unit
+    destroyed = unit_state.is_destroyed(entry.models_lost, unit.model_count)
+    below_half = unit_state.is_below_half_strength(
+        entry.models_lost, entry.wounds_lost, unit.model_count, unit.wounds
+    )
+    return ArmyUnitSummary(
+        id=entry.id,
+        unit_id=unit.id,
+        name=unit.name,
+        points=unit.points,
+        model_count=unit.model_count,
+        wounds=unit.wounds,
+        leadership=unit.leadership,
+        models_remaining=unit_state.models_remaining(entry.models_lost, unit.model_count),
+        wounds_lost=entry.wounds_lost,
+        is_destroyed=destroyed,
+        below_half_strength=below_half,
+        is_battle_shocked=entry.is_battle_shocked,
+        needs_shock_test=(
+            below_half
+            and not destroyed
+            and entry.shock_tested_round != game.current_round
+        ),
+    )
 
 
 def _serialize(game: Game) -> GameOut:
@@ -40,11 +71,9 @@ def _serialize(game: Game) -> GameOut:
                 is_ready=gp.is_ready,
                 turn_order=gp.turn_order,
                 faction=gp.faction,
-                army=[
-                    ArmyUnitSummary(id=e.unit.id, name=e.unit.name, points=e.unit.points)
-                    for e in gp.army
-                ],
+                army=[_summarize_unit(e, game) for e in gp.army],
                 army_points=sum(e.unit.points for e in gp.army),
+                command_points=gp.command_points,
             )
             for gp in game.players
         ],
@@ -215,6 +244,96 @@ def advance_phase(
     db.commit()
     db.refresh(game)
     return _serialize(game)
+
+
+def _owned_entry(game: Game, game_unit_id: int, player: Player) -> GameUnit:
+    """The caller's own unit in this game. Players manage their own units, the
+    same way you remove your own models at the table."""
+    for gp in game.players:
+        for entry in gp.army:
+            if entry.id == game_unit_id:
+                if gp.player_id != player.id:
+                    raise HTTPException(
+                        status.HTTP_403_FORBIDDEN, "You can only update your own units"
+                    )
+                return entry
+    raise HTTPException(status.HTTP_404_NOT_FOUND, "Unit is not in this game")
+
+
+@router.post("/{code}/units/{game_unit_id}/damage", response_model=GameOut)
+def apply_damage(
+    code: str,
+    game_unit_id: int,
+    body: ApplyWoundsIn,
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+) -> GameOut:
+    """Record wounds on one of your units. Negative heals, so it also undoes."""
+    game = _get_game(code, db)
+    if game.status != GameStatus.active:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Game is not active")
+    entry = _owned_entry(game, game_unit_id, player)
+
+    entry.models_lost, entry.wounds_lost = unit_state.apply_wounds(
+        entry.models_lost,
+        entry.wounds_lost,
+        entry.unit.model_count,
+        entry.unit.wounds,
+        body.wounds,
+    )
+    db.commit()
+    db.refresh(game)
+    return _serialize(game)
+
+
+@router.post("/{code}/units/{game_unit_id}/battle-shock", response_model=BattleShockResult)
+def battle_shock_test(
+    code: str,
+    game_unit_id: int,
+    body: BattleShockIn,
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+) -> BattleShockResult:
+    """Resolve a Battle-shock test from the 2D6 total the player rolled."""
+    game = _get_game(code, db)
+    if game.status != GameStatus.active:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Game is not active")
+    if game.current_phase != COMMAND_PHASE:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Battle-shock tests are taken in the Command phase",
+        )
+    if game.active_player_id != player.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "It is not your turn")
+
+    entry = _owned_entry(game, game_unit_id, player)
+    unit = entry.unit
+    if unit_state.is_destroyed(entry.models_lost, unit.model_count):
+        raise HTTPException(status.HTTP_409_CONFLICT, "That unit has been destroyed")
+    if not unit_state.is_below_half_strength(
+        entry.models_lost, entry.wounds_lost, unit.model_count, unit.wounds
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Only units below half strength take Battle-shock tests",
+        )
+    if entry.shock_tested_round == game.current_round:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "That unit has already tested this round"
+        )
+
+    passed = unit_state.passes_battle_shock(body.roll, unit.leadership)
+    entry.is_battle_shocked = not passed
+    entry.shock_tested_round = game.current_round
+    db.commit()
+    db.refresh(game)
+    return BattleShockResult(
+        unit_name=unit.name,
+        roll=body.roll,
+        leadership=unit.leadership,
+        passed=passed,
+        game=_serialize(game),
+    )
 
 
 @router.post("/{code}/finish", response_model=GameOut)

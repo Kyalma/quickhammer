@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { CombatResult, GameArmy, Unit } from "../api/types";
+import type { ArmyUnitSummary, CombatResult, Game, GameArmy, Unit } from "../api/types";
 import { DiceMathBreakdown } from "../components/DiceMathBreakdown";
 import { useAuth } from "../context/AuthContext";
 
@@ -17,21 +17,44 @@ export function CombatPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Only the units each player selected for THIS game are in play.
+  // Only the units each player selected for THIS game are in play. The live
+  // game state tells us which of them have been destroyed.
+  const [liveState, setLiveState] = useState<Map<number, ArmyUnitSummary>>(new Map());
+
   useEffect(() => {
     if (!player) return;
-    api
-      .get<GameArmy[]>(`/api/games/${code}/armies`)
-      .then((armies) => {
+    Promise.all([
+      api.get<GameArmy[]>(`/api/games/${code}/armies`),
+      api.get<Game>(`/api/games/${code}`),
+    ])
+      .then(([armies, game]) => {
         setMyUnits(armies.find((a) => a.player.id === player.id)?.units ?? []);
         setEnemyUnits(
           armies.filter((a) => a.player.id !== player.id).flatMap((a) => a.units),
+        );
+        setLiveState(
+          new Map(
+            game.players.flatMap((gp) => gp.army.map((u) => [u.unit_id, u] as const)),
+          ),
         );
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Could not load armies"),
       );
   }, [code, player]);
+
+  /** Label suffix showing a unit's live condition, or null if it is untouched. */
+  function condition(unitId: number | undefined): string {
+    const state = unitId === undefined ? undefined : liveState.get(unitId);
+    if (!state) return "";
+    if (state.is_destroyed) return " — destroyed";
+    const parts: string[] = [];
+    if (state.models_remaining < state.model_count) {
+      parts.push(`${state.models_remaining}/${state.model_count} models`);
+    }
+    if (state.is_battle_shocked) parts.push("Battle-shocked");
+    return parts.length > 0 ? ` — ${parts.join(", ")}` : "";
+  }
 
   const attacker = myUnits.find((u) => u.id === attackerId);
 
@@ -78,8 +101,9 @@ export function CombatPage() {
             >
               <option value="">Choose a unit…</option>
               {myUnits.map((u) => (
-                <option key={u.id} value={u.id}>
+                <option key={u.id} value={u.id} disabled={liveState.get(u.id!)?.is_destroyed}>
                   {u.name}
+                  {condition(u.id)}
                 </option>
               ))}
             </select>
@@ -119,8 +143,9 @@ export function CombatPage() {
             >
               <option value="">Choose a target…</option>
               {enemyUnits.map((u) => (
-                <option key={u.id} value={u.id}>
+                <option key={u.id} value={u.id} disabled={liveState.get(u.id!)?.is_destroyed}>
                   {u.name} (T{u.toughness} Sv{u.save}+ W{u.wounds}x{u.model_count})
+                  {condition(u.id)}
                 </option>
               ))}
             </select>
