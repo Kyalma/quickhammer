@@ -26,6 +26,7 @@ _MIGRATION_COLUMNS = [
     ("players", "is_admin", "BOOLEAN NOT NULL DEFAULT 0"),
     ("units", "faction", "VARCHAR(100) NOT NULL DEFAULT ''"),
     ("units", "points", "INTEGER NOT NULL DEFAULT 0"),
+    ("game_players", "faction", "VARCHAR(100) NOT NULL DEFAULT ''"),
 ]
 
 

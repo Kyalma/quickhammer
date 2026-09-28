@@ -9,7 +9,10 @@ def phase_name(index: int) -> str:
 
 
 def all_ready(game: Game) -> bool:
-    return len(game.players) >= 2 and all(gp.is_ready for gp in game.players)
+    """Two or more players, each ready and each with an army selected."""
+    return len(game.players) >= 2 and all(
+        gp.is_ready and gp.army for gp in game.players
+    )
 
 
 def start_game(game: Game) -> None:

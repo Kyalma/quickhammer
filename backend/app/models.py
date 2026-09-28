@@ -58,6 +58,10 @@ class Unit(Base):
     weapons: Mapped[list[Weapon]] = relationship(
         back_populates="unit", cascade="all, delete-orphan"
     )
+    # Deleting a unit also removes it from any game army it was picked for.
+    game_entries: Mapped[list[GameUnit]] = relationship(
+        back_populates="unit", cascade="all, delete-orphan"
+    )
 
 
 class Weapon(Base):
@@ -103,6 +107,25 @@ class GamePlayer(Base):
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id"))
     is_ready: Mapped[bool] = mapped_column(default=False)
     turn_order: Mapped[int] = mapped_column(Integer, default=0)
+    # The single faction this player brings to the game ("" = Unaligned).
+    faction: Mapped[str] = mapped_column(String(100), default="")
 
     game: Mapped[Game] = relationship(back_populates="players")
     player: Mapped[Player] = relationship()
+    army: Mapped[list[GameUnit]] = relationship(
+        back_populates="game_player", cascade="all, delete-orphan"
+    )
+
+
+class GameUnit(Base):
+    """One unit a player selected for one game (their army for that match)."""
+
+    __tablename__ = "game_units"
+    __table_args__ = (UniqueConstraint("game_player_id", "unit_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_player_id: Mapped[int] = mapped_column(ForeignKey("game_players.id"), index=True)
+    unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"), index=True)
+
+    game_player: Mapped[GamePlayer] = relationship(back_populates="army")
+    unit: Mapped[Unit] = relationship(back_populates="game_entries")

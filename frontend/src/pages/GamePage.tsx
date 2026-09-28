@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { PHASES, type Game } from "../api/types";
+import { factionLabel, PHASES, type Game } from "../api/types";
+import { ArmySelector } from "../components/ArmySelector";
 import { PhaseTracker } from "../components/PhaseTracker";
 import { useAuth } from "../context/AuthContext";
 import { usePolling } from "../hooks/usePolling";
@@ -57,15 +58,36 @@ export function GamePage() {
               <span className={"ready-pill" + (gp.is_ready ? " ready" : "")}>
                 {gp.is_ready ? "Ready" : "Not ready"}
               </span>
+              {gp.army.length > 0 && (
+                <span className="note">
+                  {" "}
+                  — {factionLabel(gp.faction)}, {gp.army.length} unit
+                  {gp.army.length === 1 ? "" : "s"}
+                  {gp.army_points > 0 && <> · {gp.army_points} pts</>}
+                </span>
+              )}
             </p>
           ))}
           {game.players.length < 2 && (
             <p className="note">At least two players are needed to start.</p>
           )}
         </div>
-        <button className="primary" onClick={() => act("ready")} style={{ width: "100%" }}>
+
+        {me && <ArmySelector code={game.code} me={me} onSaved={setGame} />}
+
+        <button
+          className="primary"
+          onClick={() => act("ready")}
+          style={{ width: "100%" }}
+          disabled={!me?.is_ready && (me?.army.length ?? 0) === 0}
+        >
           {me?.is_ready ? "Cancel ready" : "I'm ready"}
         </button>
+        {!me?.is_ready && (me?.army.length ?? 0) === 0 && (
+          <p className="note" style={{ textAlign: "center" }}>
+            Confirm your army before readying up.
+          </p>
+        )}
       </>
     );
   }
@@ -121,6 +143,12 @@ export function GamePage() {
           <p key={gp.player.id}>
             {gp.player.name}
             {gp.player.id === game.active_player_id && " ← active"}
+            <span className="note">
+              {" "}
+              — {factionLabel(gp.faction)}, {gp.army.length} unit
+              {gp.army.length === 1 ? "" : "s"}
+              {gp.army_points > 0 && <> · {gp.army_points} pts</>}
+            </span>
           </p>
         ))}
         <button className="danger" onClick={() => act("finish")} style={{ marginTop: "0.5rem" }}>

@@ -63,10 +63,32 @@ export interface Unit {
 
 export type GameStatus = "lobby" | "active" | "finished";
 
+export interface ArmyUnitSummary {
+  id: number;
+  name: string;
+  points: number;
+}
+
 export interface GamePlayer {
   player: Player;
   is_ready: boolean;
   turn_order: number;
+  faction: string;
+  army: ArmyUnitSummary[];
+  army_points: number;
+}
+
+export interface GameArmy {
+  player: Player;
+  faction: string;
+  units: Unit[];
+}
+
+export const UNALIGNED = "Unaligned";
+
+/** Display label for a faction value ("" means no faction set). */
+export function factionLabel(faction: string): string {
+  return faction.trim() || UNALIGNED;
 }
 
 export interface Game {

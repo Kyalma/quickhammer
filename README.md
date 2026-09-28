@@ -83,11 +83,14 @@ frontend/
 1. Register / log in (name + password)
 2. Build units in **Roster**: import official datasheets from the unit library
    (search + faction filter), or create/edit units manually (statline, weapons, picture upload)
-3. **Lobby**: create a game (get a join code) or join with a code, then Ready up
-4. When everyone is ready the game starts. Phases per player turn:
+3. **Lobby**: create a game (get a join code) or join with a code
+4. In the waiting room, pick the army you are fielding: one faction, then one or more
+   of its units. Confirm it, then Ready up.
+5. When everyone is ready the game starts. Phases per player turn:
    Command → Movement → Shooting → Charge → Fight
-5. In Shooting / Fight, open the **Combat** resolver: pick your unit + weapon vs an enemy unit
-   and get the full expected-value breakdown (hits → wounds → failed saves → damage → models slain)
+6. In Shooting / Fight, open the **Combat** resolver: pick your unit + weapon vs an enemy unit
+   and get the full expected-value breakdown (hits → wounds → failed saves → damage → models slain).
+   Only units fielded for that game are selectable.
 
 ## Deployment (Docker → Unraid → Cloudflare Tunnel)
 

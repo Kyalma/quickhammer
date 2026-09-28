@@ -8,8 +8,16 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_player
 from ..database import get_db
-from ..models import Game, GamePlayer, GameStatus, Player
-from ..schemas import GameOut, GamePlayerOut, PlayerOut
+from ..models import Game, GamePlayer, GameStatus, GameUnit, Player, Unit
+from ..schemas import (
+    ArmyUnitSummary,
+    GameArmyOut,
+    GameOut,
+    GamePlayerOut,
+    PlayerOut,
+    SetArmyIn,
+    UnitOut,
+)
 from ..services import game_flow
 
 router = APIRouter(prefix="/api/games", tags=["games"])
@@ -31,6 +39,12 @@ def _serialize(game: Game) -> GameOut:
                 player=PlayerOut.model_validate(gp.player),
                 is_ready=gp.is_ready,
                 turn_order=gp.turn_order,
+                faction=gp.faction,
+                army=[
+                    ArmyUnitSummary(id=e.unit.id, name=e.unit.name, points=e.unit.points)
+                    for e in gp.army
+                ],
+                army_points=sum(e.unit.points for e in gp.army),
             )
             for gp in game.players
         ],
@@ -100,6 +114,67 @@ def join_game(
     return _serialize(game)
 
 
+@router.post("/{code}/army", response_model=GameOut)
+def set_army(
+    code: str,
+    body: SetArmyIn,
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+) -> GameOut:
+    """Pick the units to bring to this game. All must share one faction."""
+    game = _get_game(code, db)
+    if game.status != GameStatus.lobby:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Game has already started")
+    gp = _membership(game, player)
+
+    unit_ids = list(dict.fromkeys(body.unit_ids))  # de-duplicate, keep order
+    units = db.scalars(select(Unit).where(Unit.id.in_(unit_ids))).all()
+    by_id = {u.id: u for u in units}
+    if len(by_id) != len(unit_ids):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "One or more units were not found")
+    if any(u.owner_id != player.id for u in units):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only select your own units")
+
+    factions = {u.faction for u in units}
+    if len(factions) > 1:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "All selected units must belong to the same faction",
+        )
+
+    gp.faction = factions.pop()
+    # Flush the removals before inserting, or re-picking the same unit trips the
+    # (game_player_id, unit_id) unique constraint.
+    for entry in list(gp.army):
+        db.delete(entry)
+    db.flush()
+    for unit_id in unit_ids:
+        gp.army.append(GameUnit(unit_id=unit_id))
+    # Changing the army means re-confirming readiness.
+    gp.is_ready = False
+    db.commit()
+    db.refresh(game)
+    return _serialize(game)
+
+
+@router.get("/{code}/armies", response_model=list[GameArmyOut])
+def get_armies(
+    code: str,
+    _: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+) -> list[GameArmyOut]:
+    """Full unit data for every player's army — used by the combat resolver."""
+    game = _get_game(code, db)
+    return [
+        GameArmyOut(
+            player=PlayerOut.model_validate(gp.player),
+            faction=gp.faction,
+            units=[UnitOut.model_validate(e.unit) for e in gp.army],
+        )
+        for gp in game.players
+    ]
+
+
 @router.post("/{code}/ready", response_model=GameOut)
 def toggle_ready(
     code: str,
@@ -110,6 +185,11 @@ def toggle_ready(
     if game.status != GameStatus.lobby:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game has already started")
     gp = _membership(game, player)
+    if not gp.is_ready and not gp.army:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Select at least one unit for this game before readying up",
+        )
     gp.is_ready = not gp.is_ready
     # Auto-start once at least two players are all ready.
     if game_flow.all_ready(game):

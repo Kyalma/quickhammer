@@ -88,10 +88,35 @@ class UnitOut(UnitIn):
 
 # --- Games -----------------------------------------------------------------
 
+class ArmyUnitSummary(BaseModel):
+    """Lightweight entry for the polled game state."""
+
+    id: int
+    name: str
+    points: int
+
+
 class GamePlayerOut(BaseModel):
     player: PlayerOut
     is_ready: bool
     turn_order: int
+    faction: str = ""
+    army: list[ArmyUnitSummary] = []
+    army_points: int = 0
+
+
+class SetArmyIn(BaseModel):
+    """The units a player brings to a game. All must share one faction."""
+
+    unit_ids: list[int] = Field(min_length=1, max_length=50)
+
+
+class GameArmyOut(BaseModel):
+    """Full unit data for one player's army (used by the combat resolver)."""
+
+    player: PlayerOut
+    faction: str
+    units: list[UnitOut]
 
 
 class GameOut(BaseModel):

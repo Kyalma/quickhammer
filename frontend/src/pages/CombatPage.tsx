@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { CombatResult, Game, Unit } from "../api/types";
+import type { CombatResult, GameArmy, Unit } from "../api/types";
 import { DiceMathBreakdown } from "../components/DiceMathBreakdown";
 import { useAuth } from "../context/AuthContext";
 
@@ -17,25 +17,20 @@ export function CombatPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Load my roster and every opponent's roster.
+  // Only the units each player selected for THIS game are in play.
   useEffect(() => {
     if (!player) return;
-    (async () => {
-      try {
-        const [mine, game] = await Promise.all([
-          api.get<Unit[]>("/api/units"),
-          api.get<Game>(`/api/games/${code}`),
-        ]);
-        setMyUnits(mine);
-        const opponents = game.players.filter((gp) => gp.player.id !== player.id);
-        const rosters = await Promise.all(
-          opponents.map((gp) => api.get<Unit[]>(`/api/units/player/${gp.player.id}`)),
+    api
+      .get<GameArmy[]>(`/api/games/${code}/armies`)
+      .then((armies) => {
+        setMyUnits(armies.find((a) => a.player.id === player.id)?.units ?? []);
+        setEnemyUnits(
+          armies.filter((a) => a.player.id !== player.id).flatMap((a) => a.units),
         );
-        setEnemyUnits(rosters.flat());
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not load units");
-      }
-    })();
+      })
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Could not load armies"),
+      );
   }, [code, player]);
 
   const attacker = myUnits.find((u) => u.id === attackerId);
@@ -131,7 +126,7 @@ export function CombatPage() {
             </select>
           </div>
           {enemyUnits.length === 0 && (
-            <p className="note">Your opponents have no units in their roster yet.</p>
+            <p className="note">No opposing units have been fielded in this game.</p>
           )}
         </div>
       </div>

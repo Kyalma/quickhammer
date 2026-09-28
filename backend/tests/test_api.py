@@ -56,6 +56,14 @@ UNIT_PAYLOAD = {
 }
 
 
+def select_army(client: TestClient, code: str, headers: dict, unit_ids: list[int]) -> dict:
+    response = client.post(
+        f"/api/games/{code}/army", json={"unit_ids": unit_ids}, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 def test_health(client):
     assert client.get("/api/health").json() == {"status": "ok"}
 
@@ -151,6 +159,10 @@ def test_game_lifecycle_and_combat(client):
 
     joined = client.post(f"/api/games/{code}/join", headers=bob).json()
     assert len(joined["players"]) == 2
+
+    # Each player fields an army before readying up.
+    select_army(client, code, alice, [alice_unit["id"]])
+    select_army(client, code, bob, [bob_unit["id"]])
 
     client.post(f"/api/games/{code}/ready", headers=alice)
     started = client.post(f"/api/games/{code}/ready", headers=bob).json()

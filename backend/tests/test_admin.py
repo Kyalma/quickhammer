@@ -3,7 +3,13 @@ from sqlalchemy import select
 
 from app.models import Player
 
-from .test_api import TestSession, UNIT_PAYLOAD, client, register  # noqa: F401 (fixture)
+from .test_api import (  # noqa: F401 (fixture)
+    TestSession,
+    UNIT_PAYLOAD,
+    client,
+    register,
+    select_army,
+)
 
 
 def make_admin_directly(name: str) -> None:
@@ -40,9 +46,14 @@ def test_admin_sees_all_games_with_status(client):
     bob = register(client, "Bob")
     make_admin_directly("Alice")
 
+    alice_unit = client.post("/api/units", json=UNIT_PAYLOAD, headers=alice).json()
+    bob_unit = client.post("/api/units", json=UNIT_PAYLOAD, headers=bob).json()
+
     lobby = client.post("/api/games", headers=alice).json()
     running = client.post("/api/games", headers=alice).json()
     client.post(f"/api/games/{running['code']}/join", headers=bob)
+    select_army(client, running["code"], alice, [alice_unit["id"]])
+    select_army(client, running["code"], bob, [bob_unit["id"]])
     client.post(f"/api/games/{running['code']}/ready", headers=alice)
     client.post(f"/api/games/{running['code']}/ready", headers=bob)
 

@@ -180,6 +180,52 @@ label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-botto
 
 .faction-header h2 { margin: 0; color: var(--accent); }
 
+/* --- Checkbox / radio pick lists (army selection) ------------------------ */
+
+.pick-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem 0.75rem;
+  margin: 0 0 0.85rem;
+}
+
+.pick-group legend {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  padding: 0 0.35rem;
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.45rem 0.15rem;
+  min-height: 44px; /* touch target */
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.pick-row input {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0 0.25rem;
+  min-height: 0;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* --- Phase tracker ------------------------------------------------------ */
 
 .phase-tracker { display: flex; gap: 0.35rem; margin: 1rem 0; }
