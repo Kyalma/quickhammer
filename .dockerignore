@@ -1,0 +1,25 @@
+# Version control / editors
+.git
+.gitignore
+.vscode
+.idea
+
+# Python
+backend/.venv
+**/__pycache__
+**/.pytest_cache
+
+# Node
+frontend/node_modules
+frontend/dist
+
+# Local state — never bake into the image
+backend/*.db
+*.db
+uploads
+data
+backend/.env
+
+# Docs & plans
+README.md
+CLAUDE.md

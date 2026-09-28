@@ -1,0 +1,16 @@
+# Local/production compose file. Mirrors the Unraid container settings:
+#   QH_SECRET_KEY=<long random string> docker compose up --build
+# On Windows PowerShell: $env:QH_SECRET_KEY = "<long random string>"; docker compose up --build
+services:
+  quickhammer:
+    build: .
+    image: quickhammer:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # Required in production: signs the auth tokens. Generate once, keep stable.
+      QH_SECRET_KEY: ${QH_SECRET_KEY:?set QH_SECRET_KEY to a long random string}
+    volumes:
+      # All user data (SQLite DB + uploaded pictures). Back this folder up.
+      - ./data:/data
+    restart: unless-stopped

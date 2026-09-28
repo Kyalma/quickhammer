@@ -19,6 +19,7 @@ class PlayerOut(BaseModel):
 
     id: int
     name: str
+    is_admin: bool = False
 
 
 class TokenOut(BaseModel):

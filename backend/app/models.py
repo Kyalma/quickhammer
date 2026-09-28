@@ -29,6 +29,7 @@ class Player(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(200))
+    is_admin: Mapped[bool] = mapped_column(default=False)
 
     units: Mapped[list[Unit]] = relationship(back_populates="owner", cascade="all, delete-orphan")
 

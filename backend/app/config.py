@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     upload_dir: str = "../uploads"
     openhammer_base_url: str = "https://openhammer-api-production.up.railway.app"
     openhammer_edition: str = "10e"
+    # When set (production container), FastAPI serves the built React app from
+    # this directory. Empty in development: Vite serves the frontend instead.
+    static_dir: str = ""
 
     @property
     def upload_path(self) -> Path:

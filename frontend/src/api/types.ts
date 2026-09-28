@@ -3,6 +3,24 @@
 export interface Player {
   id: number;
   name: string;
+  is_admin: boolean;
+}
+
+export interface AdminPlayer {
+  id: number;
+  name: string;
+  is_admin: boolean;
+  unit_count: number;
+}
+
+export interface AdminGame {
+  id: number;
+  code: string;
+  status: GameStatus;
+  current_round: number;
+  phase_name: string;
+  player_names: string[];
+  active_player: string | null;
 }
 
 export interface TokenResponse {

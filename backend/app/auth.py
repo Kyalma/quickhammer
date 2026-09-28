@@ -82,3 +82,9 @@ def get_current_player(
     if player is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown player")
     return player
+
+
+def require_admin(player: Player = Depends(get_current_player)) -> Player:
+    if not player.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin rights required")
+    return player

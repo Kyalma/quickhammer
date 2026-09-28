@@ -14,6 +14,7 @@ export function Layout() {
           <nav>
             <NavLink to="/roster">Roster</NavLink>
             <NavLink to="/lobby">Play</NavLink>
+            {player.is_admin && <NavLink to="/admin">Admin</NavLink>}
           </nav>
         )}
         {player && (

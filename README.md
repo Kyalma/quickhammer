@@ -89,6 +89,87 @@ frontend/
 5. In Shooting / Fight, open the **Combat** resolver: pick your unit + weapon vs an enemy unit
    and get the full expected-value breakdown (hits → wounds → failed saves → damage → models slain)
 
+## Deployment (Docker → Unraid → Cloudflare Tunnel)
+
+One image serves everything: the API, uploaded pictures, and the built React app.
+All user data (SQLite DB + pictures) lives in the `/data` volume — that folder is the backup.
+
+### 1. Build and push the image
+
+```powershell
+docker build -t <dockerhub-user>/quickhammer:latest -t <dockerhub-user>/quickhammer:v1 .
+docker push <dockerhub-user>/quickhammer:latest
+docker push <dockerhub-user>/quickhammer:v1
+```
+
+Tag a version alongside `latest` each time — rolling back on Unraid is then just switching the tag.
+
+To try it locally first:
+
+```powershell
+$env:QH_SECRET_KEY = "<long random string>"; docker compose up --build
+# open http://localhost:8000
+```
+
+### 2. Add the container on Unraid
+
+Docker tab → **Add Container**:
+
+| Setting | Value |
+|---|---|
+| Repository | `<dockerhub-user>/quickhammer:latest` |
+| Port | host `8040` (any free port) → container `8000` (fixed) |
+| Path | host `/mnt/user/appdata/quickhammer` → container `/data` |
+| Variable | `QH_SECRET_KEY` = a long random string |
+
+`QH_SECRET_KEY` signs the login tokens. Generate it once (e.g. `openssl rand -hex 32`)
+and never change it, or every player gets logged out.
+
+### 3. Cloudflare Tunnel
+
+1. Cloudflare dashboard → Zero Trust → Networks → Tunnels → **Create a tunnel** (Cloudflared), copy the token.
+2. On Unraid, install **cloudflared** from Community Apps and paste the token
+   (or run `cloudflare/cloudflared:latest` with `tunnel run --token <token>`).
+3. In the tunnel's **Public Hostnames**, add `quickhammer.<yourdomain>` →
+   service `http://<unraid-lan-ip>:8040` (the host port you mapped, not the
+   container's 8000).
+
+Cloudflare terminates TLS and the tunnel connects outbound, so no ports are
+forwarded and your home IP stays private. The app is then live at
+`https://quickhammer.<yourdomain>`.
+
+### Updating
+
+```powershell
+docker build -t <dockerhub-user>/quickhammer:latest -t <dockerhub-user>/quickhammer:v2 .
+docker push <dockerhub-user>/quickhammer:latest; docker push <dockerhub-user>/quickhammer:v2
+```
+
+Then Unraid Docker tab → the container shows an update → **apply/force update**.
+The `/data` volume is untouched, so accounts, rosters, and pictures survive.
+
+> Adding new columns is safe: startup applies additive migrations automatically
+> (see `_MIGRATION_COLUMNS` in `backend/app/database.py`). Bigger schema changes
+> (renames, drops) still need a real migration plan before shipping.
+
+### Admin
+
+Grant a player admin rights from a console. The launcher in `scripts/` works from any
+directory, locally (auto-uses the backend venv) and inside the container:
+
+```bash
+# On the server (Unraid: Docker tab → container → Console, or docker exec):
+docker exec -it QuickHammer python scripts/make_admin.py <player-name>
+docker exec -it QuickHammer python scripts/make_admin.py --list
+docker exec -it QuickHammer python scripts/make_admin.py <name> --revoke
+
+# Local development (any directory, any Python):
+python scripts/make_admin.py <player-name>
+```
+
+Admins get an **Admin** tab in the app showing all users (with unit counts) and all
+games with their status (Pending / Running / Done).
+
 ## Status & roadmap
 
 Working today: profiles, roster with picture upload, OpenHammer datasheet import,
@@ -97,8 +178,11 @@ and the expected-value combat resolver with SUSTAINED HITS, LETHAL HITS, and TOR
 
 Not built yet (ideas, in rough priority order):
 
+### In-game features
 - Wound / casualty tracking on units during a game
 - Dice-roll mode (actual rolls instead of expected values)
 - More weapon keywords (DEVASTATING WOUNDS, BLAST, RAPID FIRE, ANTI-X…)
 - Points display / army list totals
+
+### Web-app features
 - Password reset, HTTPS, deployment

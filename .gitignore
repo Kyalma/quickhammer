@@ -20,6 +20,9 @@ frontend/dist/
 # Uploaded unit images
 uploads/
 
+# Docker compose data volume (SQLite DB + uploads in production layout)
+data/
+
 # Editors / OS
 .vscode/
 .idea/

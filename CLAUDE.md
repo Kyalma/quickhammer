@@ -53,8 +53,12 @@ Data conventions that cross layers:
 - Weapon keywords are a comma-separated string in the DB column, a `list[str]` everywhere else; `WeaponOut` has a before-validator doing the split. Only SUSTAINED HITS, LETHAL HITS, and TORRENT (auto-hit, disables crit keywords) affect the math; others are echoed back as ignored in result notes.
 - Save characteristics use "roll needed" ints (3 means 3+); `invuln_save` is nullable.
 
-Schema changes: tables are created by `init_db()` on startup and there are no migrations — after changing `models.py`, delete `backend/quickhammer.db` and restart.
+Schema changes: `init_db()` runs `create_all()` (new tables) plus a minimal additive migration: new COLUMNS must be appended to `_MIGRATION_COLUMNS` in `backend/app/database.py` (table, column, DDL), which ALTERs existing databases on startup. Production has real user data — never instruct wiping the DB. Anything beyond adding a column (renames, drops, type changes) needs a real migration plan first.
+
+Admin: `Player.is_admin` gates `/api/admin/*` (routers/admin.py, `require_admin` dependency in auth.py) and the frontend Admin tab. Rights are granted only from a console via the location-independent launcher: `python scripts/make_admin.py <name>` (`--revoke`, `--list`) — works from any CWD and any Python (bootstraps the backend venv, chdirs to the package root so `.env`/SQLite paths resolve); same command inside the container. New console scripts follow this pattern: implementation as a module under `backend/app/`, thin bootstrap launcher in root `scripts/` (copied into the image by the Dockerfile).
 
 Uploads: unit pictures land in `uploads/` at the repo root (`QH_UPLOAD_DIR`, default `../uploads` relative to `backend/`), served by FastAPI at `/uploads`; the DB stores only the URL path.
 
 API tests (`tests/test_api.py`) run against an in-memory SQLite via a `get_db` dependency override — they never touch the real DB file.
+
+Deployment: a single multi-stage image (root `Dockerfile`) where FastAPI also serves the built React app — `QH_STATIC_DIR` mounts `SPAStaticFiles` (404 → index.html fallback for client routes) at `/`, empty in dev. All persistent state (SQLite DB + uploads) lives in the `/data` volume. The user builds and pushes the image manually, runs it on Unraid (port 8000, `/mnt/user/appdata/quickhammer` → `/data`, `QH_SECRET_KEY` env), with a Cloudflare Tunnel providing `https://quickhammer.<domain>`; steps are in README "Deployment". No DB migrations exist: a `models.py` change is a breaking update in production (planned: Alembic).
