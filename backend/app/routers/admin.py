@@ -3,7 +3,7 @@
 Admin rights are granted from the server console (see app/make_admin.py),
 never through the API.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ from ..auth import require_admin
 from ..database import get_db
 from ..models import Game, GameStatus, Player, Unit
 from ..schemas import PlayerOut
-from ..services import game_flow
+from ..services import deletion, game_flow
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -71,3 +71,36 @@ def all_games(
             active_player=by_id.get(game.active_player_id),
         ))
     return result
+
+
+@router.delete("/players/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_player(
+    player_id: int,
+    admin: Player = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    """Remove a player, their roster, and their place in every game."""
+    if player_id == admin.id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "You cannot delete your own account from the admin panel",
+        )
+    player = db.get(Player, player_id)
+    if player is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Player not found")
+    deletion.delete_player(db, player)
+    db.commit()
+
+
+@router.delete("/games/{game_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_game(
+    game_id: int,
+    _: Player = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> None:
+    """Remove any game, at any stage."""
+    game = db.get(Game, game_id)
+    if game is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Game not found")
+    deletion.delete_game(db, game)
+    db.commit()

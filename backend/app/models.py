@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import enum
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -43,6 +43,9 @@ class Unit(Base):
     image_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
     faction: Mapped[str] = mapped_column(String(100), default="")
     points: Mapped[int] = mapped_column(Integer, default=0)
+    # Datasheet keywords, comma-separated (INFANTRY, MONSTER, VEHICLE, ...).
+    # MONSTER and VEHICLE ignore the Pistol firing restriction.
+    keywords: Mapped[str] = mapped_column(String(500), default="")
 
     # 10th-edition statline
     movement: Mapped[int] = mapped_column(Integer, default=6)      # inches
@@ -79,6 +82,8 @@ class Weapon(Base):
     ap: Mapped[int] = mapped_column(Integer, default=0)            # stored positive: 2 means AP-2
     damage: Mapped[str] = mapped_column(String(20), default="1")   # dice notation
     keywords: Mapped[str] = mapped_column(String(300), default="") # comma-separated
+    # How many models in the unit carry this weapon; 0 means every model.
+    carrier_count: Mapped[int] = mapped_column(Integer, default=0)
 
     unit: Mapped[Unit] = relationship(back_populates="weapons")
 
@@ -92,9 +97,17 @@ class Game(Base):
     current_phase: Mapped[int] = mapped_column(Integer, default=0)   # index into PHASES
     current_round: Mapped[int] = mapped_column(Integer, default=1)
     active_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id"), nullable=True)
+    # Who opened the lobby. Recorded explicitly rather than inferred from join
+    # order, because deleting a game is authorised against it.
+    creator_player_id: Mapped[int | None] = mapped_column(
+        ForeignKey("players.id"), nullable=True
+    )
 
     players: Mapped[list[GamePlayer]] = relationship(
         back_populates="game", cascade="all, delete-orphan", order_by="GamePlayer.turn_order"
+    )
+    attack_rolls: Mapped[list[AttackRoll]] = relationship(
+        cascade="all, delete-orphan", order_by="AttackRoll.id"
     )
 
 
@@ -137,6 +150,27 @@ class GameUnit(Base):
     is_battle_shocked: Mapped[bool] = mapped_column(default=False)
     # Round in which a Battle-shock test was taken, to block re-tests.
     shock_tested_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Round in which this unit shot, so it only shoots once per phase.
+    shot_in_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     game_player: Mapped[GamePlayer] = relationship(back_populates="army")
     unit: Mapped[Unit] = relationship(back_populates="game_entries")
+
+
+class AttackRoll(Base):
+    """One resolved-but-not-yet-applied attack, with its dice.
+
+    Rolls are stored server-side so a page refresh cannot re-roll a bad result,
+    and so the defending player can look at the same dice.
+    """
+
+    __tablename__ = "attack_rolls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    game_id: Mapped[int] = mapped_column(ForeignKey("games.id"), index=True)
+    attacker_game_unit_id: Mapped[int] = mapped_column(ForeignKey("game_units.id"))
+    target_game_unit_id: Mapped[int] = mapped_column(ForeignKey("game_units.id"))
+    payload: Mapped[str] = mapped_column(Text, default="{}")  # the rolled result as JSON
+    applied: Mapped[bool] = mapped_column(default=False)
+    resolved: Mapped[bool] = mapped_column(default=False)  # confirmed or discarded
+    resolved_round: Mapped[int] = mapped_column(Integer, default=1)

@@ -41,6 +41,18 @@ class TestMapUnit:
         assert unit.faction == "Space Marines"
         assert unit.points == 80
 
+    def test_datasheet_keywords_are_imported(self):
+        """Needed for the Pistol rule: MONSTER and VEHICLE ignore it."""
+        unit = map_unit({**INTERCESSOR, "keywords": ["Infantry", "Battleline", "Imperium"]})
+        assert unit.keywords == ["Infantry", "Battleline", "Imperium"]
+
+    def test_vehicle_keyword_survives_import(self):
+        unit = map_unit({**INTERCESSOR, "keywords": ["Vehicle", "Transport"]})
+        assert "Vehicle" in unit.keywords
+
+    def test_missing_keywords_default_to_empty(self):
+        assert map_unit(INTERCESSOR).keywords == []
+
     def test_missing_faction_and_points_default(self):
         unit = map_unit({"name": "Mystery"})
         assert unit.faction == ""

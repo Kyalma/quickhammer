@@ -17,8 +17,14 @@ from dataclasses import dataclass, field
 SUPPORTED_KEYWORDS = ("SUSTAINED HITS", "LETHAL HITS", "TORRENT")
 
 
-def parse_dice(notation: str) -> float:
-    """Average value of dice notation: '3', 'D6', '2D6', 'D3+1', '2D6+2'."""
+def parse_dice_notation(notation: str) -> tuple[int, int, int, int]:
+    """Break dice notation into (dice_count, sides, bonus, flat).
+
+    '3' -> (0, 0, 0, 3); 'D6' -> (1, 6, 0, 0); '2D6+1' -> (2, 6, 1, 0).
+    A dice_count of 0 means there is nothing to roll, just the flat value.
+    Shared by the expected-value path and the rolled path so there is exactly
+    one parser for the format.
+    """
     text = notation.strip().upper().replace(" ", "")
     if not text:
         raise ValueError("Empty dice notation")
@@ -28,22 +34,26 @@ def parse_dice(notation: str) -> float:
         raise ValueError(f"Bad dice notation: {notation!r}")
     count_s, sides_s, bonus_s, flat_s = match.groups()
 
-    total = 0.0
     if sides_s is not None:
         count = int(count_s) if count_s else 1
         sides = int(sides_s)
         if count < 1 or sides < 2:
             raise ValueError(f"Bad dice notation: {notation!r}")
-        total += count * (sides + 1) / 2
-        if bonus_s:
-            total += int(bonus_s)
-        if flat_s:  # e.g. "D63" would be sides=63; flat trailing digits invalid after dice
+        if flat_s:  # e.g. 'D63' would parse as sides=63; trailing digits are invalid
             raise ValueError(f"Bad dice notation: {notation!r}")
-    else:
-        if bonus_s:
-            raise ValueError(f"Bad dice notation: {notation!r}")
-        total += int(flat_s)
-    return total
+        return count, sides, int(bonus_s) if bonus_s else 0, 0
+
+    if bonus_s:
+        raise ValueError(f"Bad dice notation: {notation!r}")
+    return 0, 0, 0, int(flat_s)
+
+
+def parse_dice(notation: str) -> float:
+    """Average value of dice notation: '3', 'D6', '2D6', 'D3+1', '2D6+2'."""
+    count, sides, bonus, flat = parse_dice_notation(notation)
+    if count == 0:
+        return float(flat)
+    return count * (sides + 1) / 2 + bonus
 
 
 def roll_needed_to_wound(strength: int, toughness: int) -> int:
@@ -110,6 +120,56 @@ def parse_keywords(keywords: list[str]) -> tuple[int, bool, bool, list[str]]:
         else:
             unsupported.append(raw.strip())
     return sustained, lethal, torrent, unsupported
+
+
+# --- Which weapons may fire together (Shooting phase) ----------------------
+
+# A model shoots EITHER its pistols OR all its other ranged weapons, never both.
+# Monsters and Vehicles ignore that restriction and fire everything.
+PISTOL_KEYWORD = "PISTOL"
+IGNORES_PISTOL_RESTRICTION = ("MONSTER", "VEHICLE")
+
+
+def _upper(keywords: list[str]) -> set[str]:
+    return {k.strip().upper() for k in keywords if k.strip()}
+
+
+def is_pistol(weapon_keywords: list[str]) -> bool:
+    return PISTOL_KEYWORD in _upper(weapon_keywords)
+
+
+def ignores_pistol_restriction(unit_keywords: list[str]) -> bool:
+    """MONSTER and VEHICLE models may fire pistols alongside everything else."""
+    return bool(_upper(unit_keywords) & set(IGNORES_PISTOL_RESTRICTION))
+
+
+def weapon_selection_error(
+    unit_keywords: list[str], selected: list[tuple[str, str, list[str]]]
+) -> str | None:
+    """Validate a set of weapons chosen to shoot with.
+
+    `selected` is (name, kind, keywords) per weapon. Returns an error message,
+    or None when the selection is legal.
+    """
+    if not selected:
+        return "Select at least one weapon to shoot with"
+
+    melee = [name for name, kind, _ in selected if kind != "ranged"]
+    if melee:
+        return f"{melee[0]} is a melee weapon and cannot be fired in the Shooting phase"
+
+    if ignores_pistol_restriction(unit_keywords):
+        return None
+
+    pistols = [name for name, _, kws in selected if is_pistol(kws)]
+    others = [name for name, _, kws in selected if not is_pistol(kws)]
+    if pistols and others:
+        return (
+            f"A model must shoot either its pistols or its other weapons, not both: "
+            f"{pistols[0]} is a Pistol but {others[0]} is not. "
+            "Only Monsters and Vehicles may combine them."
+        )
+    return None
 
 
 def resolve_attack(attacker: AttackerProfile, defender: DefenderProfile) -> dict:

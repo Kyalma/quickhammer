@@ -2,15 +2,16 @@
 
 A responsive web companion for tabletop Warhammer 40k. Works on laptop, iPad, and phone.
 
-Players create a profile, build their unit roster (statlines, weapons, a picture), join a shared
-game session by code, follow the five game phases together, and resolve shooting / fight math
-automatically with the A-vs-B combat resolver. Rosters can be filled by hand or imported from
-official datasheets via the public OpenHammer API (searchable by name and faction).
+Players create a profile, build a unit roster, pick a game from a list, and step through the five
+phases of a 10th-edition turn together. The app tracks casualties, resolves the Command phase, and
+rolls shooting attacks with real dice, showing every die and its outcome before you apply the result.
+Rosters can be filled by hand or imported from official datasheets via the public OpenHammer API,
+searchable by name and faction.
 
 ## Stack
 
 - **Frontend:** React + TypeScript (Vite), plain CSS, mobile-first
-- **Backend:** Python 3 + FastAPI, SQLite via SQLAlchemy
+- **Backend:** Python 3 + FastAPI, SQLite via SQLAlchemy, Alembic migrations
 - **Live sync:** clients poll the game-state endpoint every few seconds
 
 ## Getting started
@@ -31,7 +32,8 @@ python -m uvicorn app.main:app --reload
 > `python.exe` is signed and runs fine.
 
 API runs at http://localhost:8000 (interactive docs at http://localhost:8000/docs).
-The SQLite database (`quickhammer.db`) and `uploads/` folder are created automatically.
+The SQLite database (`quickhammer.db`) and `uploads/` folder are created automatically, and the
+schema is migrated on startup, so there is no separate setup step.
 
 ### Frontend
 
@@ -49,33 +51,63 @@ so start the backend first. To try it from an iPad/phone on the same network, ru
 
 ```powershell
 cd backend
-pytest
+.venv\Scripts\python.exe -m pytest -q          # everything
+.venv\Scripts\python.exe -m pytest tests/test_attack_roll.py -q   # one file
 ```
+
+Tests build their own in-memory database and never touch `quickhammer.db`.
+
+### Changing the database schema
+
+Every change is an Alembic revision, so deployed data survives. Never delete the database.
+
+```powershell
+cd backend
+.venv\Scripts\python.exe -m alembic revision --autogenerate -m "what changed"
+.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Read the generated file before committing it. Autogenerate writes `NOT NULL` columns without a
+default, which fails on any table that already has rows, so add a `server_default` to each one.
 
 ## Project layout
 
 ```
+Dockerfile            Multi-stage: builds the frontend, serves it from FastAPI
+docker-compose.yml    Local run, mirrors the Unraid container settings
+scripts/
+  make_admin.py       Grant/revoke admin from any directory
+
 backend/
+  alembic/            Migrations; every schema change is a revision here
   app/
-    main.py          FastAPI app: CORS, routers, static uploads
-    config.py        Settings (.env)
-    database.py      SQLAlchemy engine + session
-    models.py        Player, Unit, Weapon, Game, GamePlayer
-    schemas.py       Pydantic request/response models
-    auth.py          Password hashing + signed tokens
-    routers/         players, units, games, combat, library endpoints
+    main.py           FastAPI app: CORS, routers, static uploads + built frontend
+    config.py         Settings (.env)
+    database.py       Engine, session, and the startup migration runner
+    models.py         Player, Unit, Weapon, Game, GamePlayer, GameUnit, AttackRoll
+    schemas.py        Pydantic request/response models
+    auth.py           Password hashing + signed tokens
+    make_admin.py     Admin CLI implementation (run via scripts/make_admin.py)
+    routers/          players, units, games, shooting, combat, library, admin
     services/
-      combat.py      Pure combat math (hit / wound / save / damage)
-      game_flow.py   Phase order and turn logic
-      library.py     OpenHammer datasheet -> QuickHammer mapping
+      combat.py       Expected-value math + weapon-selection rules
+      attack_roll.py  Rolled shooting: real dice, per-die outcomes, allocation
+      unit_state.py   Casualties, Below Half-strength, Battle-shock tests
+      game_flow.py    Phase order, turn progression, command points
+      library.py      OpenHammer datasheet -> QuickHammer mapping
+      deletion.py     Tearing down games and players without orphan rows
   tests/
 frontend/
   src/
-    api/             fetch client + shared types
-    context/         auth state
-    hooks/           usePolling
-    components/      Layout, UnitCard, PhaseTracker, DiceMathBreakdown
-    pages/           Login, Roster, UnitEditor, Library, Lobby, Game, Combat
+    api/              fetch client + shared types
+    context/          auth state
+    hooks/            usePolling
+    components/       Layout, UnitCard, PhaseTracker, ArmySelector,
+                      ArmyStatusPanel, CommandPhasePanel, DiceRollTrack,
+                      DiceMathBreakdown
+    pages/            Login, Roster, UnitEditor, Library, Lobby, Game,
+                      Combat, AttackView, Admin
+uploads/              Unit pictures (gitignored; the /data volume in production)
 ```
 
 ## Game flow
@@ -83,7 +115,8 @@ frontend/
 1. Register / log in (name + password)
 2. Build units in **Roster**: import official datasheets from the unit library
    (search + faction filter), or create/edit units manually (statline, weapons, picture upload)
-3. **Lobby**: create a game (get a join code) or join with a code
+3. **Play**: create a game, or pick one from the list and hit Join. Finished games are hidden,
+   and the player who opened a game can delete it while it is still Pending.
 4. In the waiting room, pick the army you are fielding: one faction, then one or more
    of its units. Confirm it, then Ready up.
 5. When everyone is ready the game starts. Phases per player turn:
@@ -92,9 +125,18 @@ frontend/
 7. In your **Command phase** you gain a Command Point, any Battle-shock on your units wears
    off, and every unit below half strength must take a Battle-shock test. Roll 2D6 on the table
    and type the total; the app applies the result and tracks the consequences.
-8. In Shooting / Fight, open the **Combat** resolver: pick your unit + weapon vs an enemy unit
-   and get the full expected-value breakdown (hits → wounds → failed saves → damage → models slain).
-   Only units fielded for that game are selectable, and destroyed units are greyed out.
+8. In your **Shooting phase**, pick a unit, a target, and which weapons fire. A model fires all its
+   non-pistol ranged weapons together, or its pistols instead, and Monsters and Vehicles may fire
+   everything at once. **Preview odds** shows the averages; **Roll to hit** rolls real dice and
+   shows every one with its outcome (Miss, Hit, Wounded, Saved, Destroyed). Then **Confirm and
+   apply** writes the damage to the target and returns you to the game, or **Discard** throws the
+   result away and gives the unit its shot back. Each unit shoots once per phase, and the dice are
+   rolled on the server so a refresh cannot re-roll them.
+9. The Fight phase has no rolled dice yet. The same screen switches to your melee weapons and
+   works out the odds, so you roll at the table and record the casualties yourself.
+
+Throughout, only units fielded for that game are selectable, and destroyed units are greyed out.
+Your opponent can watch your dice from their own device while an attack is waiting to be confirmed.
 
 ## Deployment (Docker → Unraid → Cloudflare Tunnel)
 
@@ -175,25 +217,44 @@ python scripts/make_admin.py <player-name>
 ```
 
 Admins get an **Admin** tab in the app showing all users (with unit counts) and all
-games with their status (Pending / Running / Done).
+games with their status (Pending / Running / Done), including finished games that are
+hidden from the Play page. Admins can delete users and games from there. Deleting a user
+removes their roster and their place in every game, but games keep running for the
+remaining players. Admins cannot delete their own account.
 
 ## Status & roadmap
 
-Working today: profiles, roster with picture upload grouped by faction with points totals,
-OpenHammer datasheet import, game sessions (create / join / pick a faction and army / ready /
-auto-start), phase & turn tracking for 2–4 players, casualty tracking, the **Command phase**
-(command points and Battle-shock tests), the expected-value combat resolver with SUSTAINED HITS,
-LETHAL HITS and TORRENT, an admin view, Docker deployment and Alembic migrations.
+### Working today
 
-Not built yet (ideas, in rough priority order):
+**Rosters** — profiles, manual unit editing, picture upload, OpenHammer datasheet import,
+grouping by faction with points totals per faction and per unit.
 
-### In-game features
-- Rules for the other four phases (Movement, Shooting, Charge, Fight)
+**Games** — browse and join from a list, pick one faction and the units you are fielding,
+ready up and auto-start, phase and turn tracking for 2 to 4 players, casualty tracking.
+
+**Rules** — the **Command phase** in full (command points, Below Half-strength, Battle-shock
+tests from your own 2D6 roll) and the **Shooting phase** in full (multi-weapon volleys, the
+Pistol restriction with the Monster and Vehicle exception, per-weapon carrier counts, real
+server-rolled dice with per-die outcomes, confirm or discard). Weapon keywords SUSTAINED HITS,
+LETHAL HITS and TORRENT affect both the rolled and the expected-value paths.
+
+**Operations** — admin view with user and game deletion, Docker deployment behind a Cloudflare
+Tunnel, and Alembic migrations that upgrade a live database in place.
+
+### Not built yet
+
+Rough priority order.
+
+#### In-game features
+- Rules for the Fight phase, then Movement and Charge
 - Objective markers and victory points
 - Stratagems and spending command points
 - More weapon keywords (DEVASTATING WOUNDS, BLAST, RAPID FIRE, ANTI-X…)
-- Feeding combat results straight into casualty tracking
-- Dice-roll mode for combat (actual rolls instead of expected values)
+- Hit and wound modifiers, and cover
+- Rolled dice for melee, reusing the shooting resolver
+- Feeding a rolled result into casualty tracking without the confirm step
 
-### Web-app features
-- Password reset, HTTPS, deployment
+#### Web-app features
+- Password reset
+- A game log, so players can review what happened
+- Range and line-of-sight checks (needs a notion of board position)

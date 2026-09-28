@@ -129,12 +129,23 @@ export function GamePage() {
         <CommandPhasePanel code={game.code} me={me} onChange={setGame} />
       )}
 
-      {combatPhase && (
+      {combatPhase && isMyTurn && (
         <Link to={`/games/${game.code}/combat`}>
           <button className="primary" style={{ width: "100%", marginBottom: "1rem" }}>
-            ⚔ Resolve an attack
+            {phaseName === "Shooting" ? "🎯 Shoot" : "⚔ Resolve an attack"}
           </button>
         </Link>
+      )}
+
+      {game.pending_attack_id !== null && !isMyTurn && (
+        <div className="card">
+          <p>
+            <b>{activePlayer?.player.name ?? "Your opponent"}</b> is resolving an attack.
+          </p>
+          <Link to={`/games/${game.code}/attacks/${game.pending_attack_id}`}>
+            <button style={{ width: "100%" }}>Watch the dice</button>
+          </Link>
+        </div>
       )}
 
       {isMyTurn && (

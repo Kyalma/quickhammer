@@ -41,6 +41,10 @@ def _dice_or(raw: object, default: str) -> str:
 
 
 def _split_keywords(raw: object) -> list[str]:
+    """OpenHammer gives weapon keywords as a comma string ('-' when none) and
+    unit keywords as a list."""
+    if isinstance(raw, list):
+        return [str(k).strip() for k in raw if str(k).strip()]
     text = str(raw or "").strip()
     if not text or text == "-":
         return []
@@ -82,6 +86,8 @@ def map_unit(data: dict[str, Any]) -> UnitIn:
         name=str(data.get("name", "Imported unit")).strip()[:100],
         faction=str(data.get("faction") or "").strip()[:100],
         points=_clamp(_int_from(points.get("base"), 0), 0, 10000),
+        # Needed for the Pistol firing restriction: MONSTER and VEHICLE ignore it.
+        keywords=_split_keywords(data.get("keywords")),
         movement=_clamp(_int_from(stats.get("M"), 6), 0, 30),
         toughness=_clamp(_int_from(stats.get("T"), 4), 1, 16),
         save=_clamp(_int_from(stats.get("SV"), 3), 2, 7),

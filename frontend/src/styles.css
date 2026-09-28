@@ -215,6 +215,55 @@ label { display: block; font-size: 0.85rem; color: var(--text-dim); margin-botto
   accent-color: var(--accent);
 }
 
+/* --- Dice trays (rolled shooting) ---------------------------------------- */
+
+.roll-stage {
+  border-top: 1px solid var(--border);
+  padding: 0.6rem 0 0.2rem;
+  animation: stage-in 0.25s ease-out;
+}
+
+@keyframes stage-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.roll-stage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.dice-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+
+.die {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.die.good { background: var(--ok); border-color: var(--ok); color: var(--accent-text); }
+.die.fail { background: var(--surface-2); border-color: var(--border); color: var(--text-dim); }
+.die.crit { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.die.auto { background: transparent; border-style: dashed; color: var(--accent); }
+
 /* --- Live unit state ----------------------------------------------------- */
 
 .unit-state {

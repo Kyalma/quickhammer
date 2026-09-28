@@ -16,7 +16,7 @@ BACKEND = Path(__file__).resolve().parent.parent
 
 EXPECTED_TABLES = {
     "players", "units", "weapons", "games", "game_players", "game_units",
-    "alembic_version",
+    "attack_rolls", "alembic_version",
 }
 
 # Schema from before the per-game armies feature: no game_units table and no
@@ -49,6 +49,8 @@ INSERT INTO games (code, status, current_phase, current_round) VALUES ('ABC12', 
 INSERT INTO game_players (game_id, player_id, is_ready, turn_order, faction)
   VALUES (1, 1, 0, 0, 'Space Marines');
 INSERT INTO game_units (game_player_id, unit_id) VALUES (1, 1);
+INSERT INTO weapons (unit_id, name, kind, range, attacks, skill, strength, ap, damage, keywords)
+  VALUES (1, 'Bolt rifle', 'ranged', 24, '2', 3, 4, 1, '1', '');
 """
 
 
@@ -103,7 +105,11 @@ def test_migrates_to_head_with_every_table_and_column(legacy_db):
         assert {"faction", "command_points"} <= columns(con, "game_players")
         assert {
             "models_lost", "wounds_lost", "is_battle_shocked", "shock_tested_round",
+            "shot_in_round",
         } <= columns(con, "game_units")
+        assert "keywords" in columns(con, "units")
+        assert "carrier_count" in columns(con, "weapons")
+        assert "attack_rolls" in tables
     finally:
         con.close()
 
@@ -141,10 +147,37 @@ def test_in_progress_game_keeps_its_army_and_starts_undamaged(tmp_path):
     try:
         assert con.execute("SELECT game_player_id, unit_id FROM game_units").fetchall() == [(1, 1)]
         state = con.execute(
-            "SELECT models_lost, wounds_lost, is_battle_shocked, shock_tested_round "
-            "FROM game_units"
+            "SELECT models_lost, wounds_lost, is_battle_shocked, shock_tested_round, "
+            "shot_in_round FROM game_units"
         ).fetchone()
-        assert state == (0, 0, 0, None)
+        assert state == (0, 0, 0, None, None)
+        # Existing weapon rows must get the "all models carry it" default.
+        assert con.execute("SELECT carrier_count FROM weapons").fetchone() == (0,)
+        assert con.execute("SELECT keywords FROM units").fetchone() == ("",)
+    finally:
+        con.close()
+
+
+def test_existing_games_get_their_creator_backfilled(tmp_path):
+    """0004 infers the creator from join order for games that predate the column."""
+    db_path = tmp_path / "creator.db"
+    con = sqlite3.connect(db_path)
+    con.executescript(WITH_ARMIES_SQL)
+    # A second player who joined later must NOT be treated as the creator.
+    con.executescript(
+        "INSERT INTO players (name, password_hash, is_admin) VALUES ('Latecomer', 'x', 0);"
+        "INSERT INTO game_players (game_id, player_id, is_ready, turn_order, faction)"
+        "  VALUES (1, 2, 0, 1, 'Orks');"
+    )
+    con.commit()
+    con.close()
+
+    migrate(db_path)
+
+    con = sqlite3.connect(db_path)
+    try:
+        creator = con.execute("SELECT creator_player_id FROM games WHERE id = 1").fetchone()
+        assert creator == (1,)  # turn_order 0, not the latecomer
     finally:
         con.close()
 

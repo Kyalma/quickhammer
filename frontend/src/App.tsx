@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./context/AuthContext";
 import { AdminPage } from "./pages/AdminPage";
+import { AttackViewPage } from "./pages/AttackViewPage";
 import { CombatPage } from "./pages/CombatPage";
 import { GamePage } from "./pages/GamePage";
 import { LibraryPage } from "./pages/LibraryPage";
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/lobby" element={<RequireAuth><LobbyPage /></RequireAuth>} />
         <Route path="/games/:code" element={<RequireAuth><GamePage /></RequireAuth>} />
         <Route path="/games/:code/combat" element={<RequireAuth><CombatPage /></RequireAuth>} />
+        <Route path="/games/:code/attacks/:rollId" element={<RequireAuth><AttackViewPage /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth><AdminPage /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

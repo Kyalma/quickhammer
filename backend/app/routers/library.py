@@ -105,6 +105,7 @@ def import_unit(
         name=mapped.name,
         faction=mapped.faction,
         points=mapped.points,
+        keywords=",".join(mapped.keywords),
         movement=mapped.movement,
         toughness=mapped.toughness,
         save=mapped.save,
@@ -118,7 +119,7 @@ def import_unit(
         unit.weapons.append(Weapon(
             name=w.name, kind=w.kind, range=w.range, attacks=w.attacks,
             skill=w.skill, strength=w.strength, ap=w.ap, damage=w.damage,
-            keywords=",".join(w.keywords),
+            keywords=",".join(w.keywords), carrier_count=w.carrier_count,
         ))
     db.add(unit)
     db.commit()

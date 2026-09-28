@@ -61,6 +61,7 @@ export function UnitEditorPage() {
       // Clean up in-progress typing: trim keywords, drop empties.
       const payload: Unit = {
         ...unit,
+        keywords: unit.keywords.map((k) => k.trim()).filter(Boolean),
         weapons: unit.weapons.map((w) => ({
           ...w,
           keywords: w.keywords.map((k) => k.trim()).filter(Boolean),
@@ -116,6 +117,14 @@ export function UnitEditorPage() {
             />
           </div>
           <NumberField label="Points" value={unit.points} onChange={(v) => patch({ points: v })} max={10000} />
+        </div>
+        <div className="field">
+          <label>Keywords (comma-separated; MONSTER and VEHICLE may fire pistols with other weapons)</label>
+          <input
+            value={unit.keywords.join(",")}
+            onChange={(e) => patch({ keywords: e.target.value.split(",") })}
+            placeholder="Infantry, Battleline, Imperium"
+          />
         </div>
         <div className="field">
           <label>Picture</label>
@@ -227,7 +236,7 @@ export function UnitEditorPage() {
             </div>
           </div>
           <div className="field">
-            <label>Keywords (comma-separated: SUSTAINED HITS 1, LETHAL HITS)</label>
+            <label>Keywords (comma-separated: SUSTAINED HITS 1, LETHAL HITS, TORRENT, PISTOL)</label>
             <input
               value={weapon.keywords.join(",")}
               onChange={(e) =>
@@ -237,6 +246,12 @@ export function UnitEditorPage() {
               }
             />
           </div>
+          <NumberField
+            label="Models carrying this (0 = all)"
+            value={weapon.carrier_count}
+            onChange={(v) => patchWeapon(index, { carrier_count: v })}
+            max={30}
+          />
           <button
             type="button"
             className="danger"

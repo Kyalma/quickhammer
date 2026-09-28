@@ -1,4 +1,4 @@
-"""Game sessions: create / join / ready / start / poll / advance."""
+﻿"""Game sessions: create / join / ready / start / poll / advance."""
 import secrets
 import string
 
@@ -17,11 +17,12 @@ from ..schemas import (
     GameArmyOut,
     GameOut,
     GamePlayerOut,
+    GameSummaryOut,
     PlayerOut,
     SetArmyIn,
     UnitOut,
 )
-from ..services import game_flow, unit_state
+from ..services import deletion, game_flow, unit_state
 
 router = APIRouter(prefix="/api/games", tags=["games"])
 
@@ -53,10 +54,11 @@ def _summarize_unit(entry: GameUnit, game: Game) -> ArmyUnitSummary:
             and not destroyed
             and entry.shock_tested_round != game.current_round
         ),
+        has_shot=entry.shot_in_round == game.current_round,
     )
 
 
-def _serialize(game: Game) -> GameOut:
+def serialize_game(game: Game) -> GameOut:
     return GameOut(
         id=game.id,
         code=game.code,
@@ -77,10 +79,13 @@ def _serialize(game: Game) -> GameOut:
             )
             for gp in game.players
         ],
+        pending_attack_id=next(
+            (roll.id for roll in game.attack_rolls if not roll.resolved), None
+        ),
     )
 
 
-def _get_game(code: str, db: Session) -> Game:
+def get_game(code: str, db: Session) -> Game:
     game = db.scalar(select(Game).where(Game.code == code.upper()))
     if game is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Game not found")
@@ -106,12 +111,83 @@ def _new_code(db: Session) -> str:
 def create_game(
     player: Player = Depends(get_current_player), db: Session = Depends(get_db)
 ) -> GameOut:
-    game = Game(code=_new_code(db))
+    game = Game(code=_new_code(db), creator_player_id=player.id)
     game.players.append(GamePlayer(player_id=player.id, turn_order=0))
     db.add(game)
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
+
+
+@router.get("", response_model=list[GameSummaryOut])
+def list_games(
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+    limit: int = 50,
+) -> list[GameSummaryOut]:
+    """Joinable and in-progress games, newest first.
+
+    Finished games are left out: players only care about what they can join or
+    return to. The admin view lists everything, including finished games.
+    """
+    games = db.scalars(
+        select(Game)
+        .where(Game.status != GameStatus.finished)
+        .order_by(Game.id.desc())
+        .limit(limit)
+    ).all()
+    summaries = []
+    for game in games:
+        member_ids = {gp.player_id for gp in game.players}
+        is_member = player.id in member_ids
+        creator = next(
+            (gp.player.name for gp in game.players
+             if gp.player_id == game.creator_player_id),
+            None,
+        )
+        summaries.append(GameSummaryOut(
+            id=game.id,
+            code=game.code,
+            status=game.status,
+            current_round=game.current_round,
+            phase_name=game_flow.phase_name(game.current_phase),
+            player_count=len(game.players),
+            player_names=[gp.player.name for gp in game.players],
+            creator_name=creator,
+            is_member=is_member,
+            can_join=(
+                game.status == GameStatus.lobby
+                and not is_member
+                and len(game.players) < MAX_PLAYERS
+            ),
+            # Only the creator, and only before the game starts.
+            can_delete=(
+                game.status == GameStatus.lobby
+                and game.creator_player_id == player.id
+            ),
+        ))
+    return summaries
+
+
+@router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_game(
+    code: str,
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+) -> None:
+    """Cancel a game you created, while it is still in the lobby."""
+    game = get_game(code, db)
+    if game.creator_player_id != player.id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only the player who created a game can delete it"
+        )
+    if game.status != GameStatus.lobby:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A game that has started cannot be deleted; end it instead",
+        )
+    deletion.delete_game(db, game)
+    db.commit()
 
 
 @router.get("/{code}", response_model=GameOut)
@@ -121,7 +197,7 @@ def get_game_state(
     db: Session = Depends(get_db),
 ) -> GameOut:
     """Polling endpoint: full game state."""
-    return _serialize(_get_game(code, db))
+    return serialize_game(get_game(code, db))
 
 
 @router.post("/{code}/join", response_model=GameOut)
@@ -130,9 +206,9 @@ def join_game(
     player: Player = Depends(get_current_player),
     db: Session = Depends(get_db),
 ) -> GameOut:
-    game = _get_game(code, db)
+    game = get_game(code, db)
     if any(gp.player_id == player.id for gp in game.players):
-        return _serialize(game)  # already in: idempotent
+        return serialize_game(game)  # already in: idempotent
     if game.status != GameStatus.lobby:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game has already started")
     if len(game.players) >= MAX_PLAYERS:
@@ -140,7 +216,7 @@ def join_game(
     game.players.append(GamePlayer(player_id=player.id, turn_order=len(game.players)))
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
 
 
 @router.post("/{code}/army", response_model=GameOut)
@@ -151,7 +227,7 @@ def set_army(
     db: Session = Depends(get_db),
 ) -> GameOut:
     """Pick the units to bring to this game. All must share one faction."""
-    game = _get_game(code, db)
+    game = get_game(code, db)
     if game.status != GameStatus.lobby:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game has already started")
     gp = _membership(game, player)
@@ -183,7 +259,7 @@ def set_army(
     gp.is_ready = False
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
 
 
 @router.get("/{code}/armies", response_model=list[GameArmyOut])
@@ -192,8 +268,8 @@ def get_armies(
     _: Player = Depends(get_current_player),
     db: Session = Depends(get_db),
 ) -> list[GameArmyOut]:
-    """Full unit data for every player's army — used by the combat resolver."""
-    game = _get_game(code, db)
+    """Full unit data for every player's army â€” used by the combat resolver."""
+    game = get_game(code, db)
     return [
         GameArmyOut(
             player=PlayerOut.model_validate(gp.player),
@@ -210,7 +286,7 @@ def toggle_ready(
     player: Player = Depends(get_current_player),
     db: Session = Depends(get_db),
 ) -> GameOut:
-    game = _get_game(code, db)
+    game = get_game(code, db)
     if game.status != GameStatus.lobby:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game has already started")
     gp = _membership(game, player)
@@ -225,7 +301,7 @@ def toggle_ready(
         game_flow.start_game(game)
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
 
 
 @router.post("/{code}/advance", response_model=GameOut)
@@ -234,7 +310,7 @@ def advance_phase(
     player: Player = Depends(get_current_player),
     db: Session = Depends(get_db),
 ) -> GameOut:
-    game = _get_game(code, db)
+    game = get_game(code, db)
     _membership(game, player)
     if game.status != GameStatus.active:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game is not active")
@@ -243,7 +319,7 @@ def advance_phase(
     game_flow.advance(game)
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
 
 
 def _owned_entry(game: Game, game_unit_id: int, player: Player) -> GameUnit:
@@ -269,7 +345,7 @@ def apply_damage(
     db: Session = Depends(get_db),
 ) -> GameOut:
     """Record wounds on one of your units. Negative heals, so it also undoes."""
-    game = _get_game(code, db)
+    game = get_game(code, db)
     if game.status != GameStatus.active:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game is not active")
     entry = _owned_entry(game, game_unit_id, player)
@@ -283,7 +359,7 @@ def apply_damage(
     )
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
 
 
 @router.post("/{code}/units/{game_unit_id}/battle-shock", response_model=BattleShockResult)
@@ -295,7 +371,7 @@ def battle_shock_test(
     db: Session = Depends(get_db),
 ) -> BattleShockResult:
     """Resolve a Battle-shock test from the 2D6 total the player rolled."""
-    game = _get_game(code, db)
+    game = get_game(code, db)
     if game.status != GameStatus.active:
         raise HTTPException(status.HTTP_409_CONFLICT, "Game is not active")
     if game.current_phase != COMMAND_PHASE:
@@ -332,7 +408,7 @@ def battle_shock_test(
         roll=body.roll,
         leadership=unit.leadership,
         passed=passed,
-        game=_serialize(game),
+        game=serialize_game(game),
     )
 
 
@@ -342,9 +418,10 @@ def finish_game(
     player: Player = Depends(get_current_player),
     db: Session = Depends(get_db),
 ) -> GameOut:
-    game = _get_game(code, db)
+    game = get_game(code, db)
     _membership(game, player)
     game.status = GameStatus.finished
     db.commit()
     db.refresh(game)
-    return _serialize(game)
+    return serialize_game(game)
+

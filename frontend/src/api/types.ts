@@ -41,6 +41,20 @@ export interface Weapon {
   ap: number;      // positive: 2 means AP-2
   damage: string;  // dice notation
   keywords: string[];
+  carrier_count: number; // models carrying it; 0 means all
+}
+
+/** A model fires either its pistols or its other ranged weapons, never both. */
+export function isPistol(weapon: Weapon): boolean {
+  return weapon.keywords.some((k) => k.trim().toUpperCase() === "PISTOL");
+}
+
+/** Monsters and Vehicles ignore the pistol restriction. */
+export function ignoresPistolRule(unit: Unit | undefined): boolean {
+  if (!unit) return false;
+  return unit.keywords.some((k) =>
+    ["MONSTER", "VEHICLE"].includes(k.trim().toUpperCase()),
+  );
 }
 
 export interface Unit {
@@ -49,6 +63,7 @@ export interface Unit {
   name: string;
   faction: string;
   points: number;
+  keywords: string[];
   image_path?: string | null;
   movement: number;
   toughness: number;
@@ -78,6 +93,7 @@ export interface ArmyUnitSummary {
   below_half_strength: boolean;
   is_battle_shocked: boolean;
   needs_shock_test: boolean;
+  has_shot: boolean;
 }
 
 export interface GamePlayer {
@@ -90,6 +106,47 @@ export interface GamePlayer {
   command_points: number;
 }
 
+// --- Rolled shooting -------------------------------------------------------
+
+export interface RolledDie {
+  value: number; // 0 means no die was rolled (auto-hit, auto-wound, no save)
+  outcome: string;
+}
+
+export interface RollStage {
+  name: string;
+  dice: RolledDie[];
+  summary: string;
+}
+
+export interface WeaponRoll {
+  weapon: string;
+  models_firing: number;
+  stages: RollStage[];
+}
+
+export interface ShootingRolls {
+  target: string;
+  weapons: WeaponRoll[];
+  total_damage: number;
+  models_slain: number;
+  destroyed: boolean;
+  allocation: string[];
+  outcome: string;
+  notes: string[];
+  result_models_lost: number;
+  result_wounds_lost: number;
+}
+
+export interface AttackRoll {
+  id: number;
+  applied: boolean;
+  resolved: boolean;
+  attacker_name: string;
+  target_name: string;
+  rolls: ShootingRolls;
+}
+
 export interface BattleShockResult {
   unit_name: string;
   roll: number;
@@ -97,6 +154,27 @@ export interface BattleShockResult {
   passed: boolean;
   game: Game;
 }
+
+/** One row in the games list. Light: no armies or dice. */
+export interface GameSummary {
+  id: number;
+  code: string;
+  status: GameStatus;
+  current_round: number;
+  phase_name: string;
+  player_count: number;
+  player_names: string[];
+  creator_name: string | null;
+  is_member: boolean;
+  can_join: boolean;
+  can_delete: boolean;
+}
+
+export const GAME_STATUS_LABELS: Record<GameStatus, string> = {
+  lobby: "Pending",
+  active: "Running",
+  finished: "Done",
+};
 
 export interface GameArmy {
   player: Player;
@@ -120,6 +198,7 @@ export interface Game {
   current_round: number;
   active_player_id: number | null;
   players: GamePlayer[];
+  pending_attack_id: number | null;
 }
 
 export interface CombatStep {
@@ -166,6 +245,7 @@ export function emptyWeapon(): Weapon {
     ap: 0,
     damage: "1",
     keywords: [],
+    carrier_count: 0,
   };
 }
 
@@ -174,6 +254,7 @@ export function emptyUnit(): Unit {
     name: "",
     faction: "",
     points: 0,
+    keywords: [],
     movement: 6,
     toughness: 4,
     save: 3,

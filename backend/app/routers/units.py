@@ -36,12 +36,13 @@ def _apply_unit_payload(unit: Unit, body: UnitIn) -> None:
     for attr in ("name", "faction", "points", "movement", "toughness", "save",
                  "invuln_save", "wounds", "leadership", "oc", "model_count"):
         setattr(unit, attr, getattr(body, attr))
+    unit.keywords = ",".join(body.keywords)
     unit.weapons.clear()
     for w in body.weapons:
         unit.weapons.append(Weapon(
             name=w.name, kind=w.kind, range=w.range, attacks=w.attacks,
             skill=w.skill, strength=w.strength, ap=w.ap, damage=w.damage,
-            keywords=",".join(w.keywords),
+            keywords=",".join(w.keywords), carrier_count=w.carrier_count,
         ))
 
 
