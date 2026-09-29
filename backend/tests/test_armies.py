@@ -146,7 +146,8 @@ def test_army_locked_after_game_starts(client):
     select_army(client, code, alice, [a_unit["id"]])
     select_army(client, code, bob, [b_unit["id"]])
     client.post(f"/api/games/{code}/ready", headers=alice)
-    started = client.post(f"/api/games/{code}/ready", headers=bob).json()
+    client.post(f"/api/games/{code}/ready", headers=bob)
+    started = client.post(f"/api/games/{code}/start", headers=alice).json()
     assert started["status"] == "active"
 
     response = client.post(

@@ -25,7 +25,8 @@ def start_two_player_game(client) -> tuple[dict, dict, str, dict, dict]:
     state = select_army(client, code, alice, [a_unit["id"]])
     state = select_army(client, code, bob, [b_unit["id"]])
     client.post(f"/api/games/{code}/ready", headers=alice)
-    state = client.post(f"/api/games/{code}/ready", headers=bob).json()
+    client.post(f"/api/games/{code}/ready", headers=bob)
+    state = client.post(f"/api/games/{code}/start", headers=alice).json()
     assert state["status"] == "active"
     a_entry = next(p for p in state["players"] if p["player"]["name"] == "Alice")["army"][0]
     b_entry = next(p for p in state["players"] if p["player"]["name"] == "Bob")["army"][0]

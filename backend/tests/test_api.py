@@ -165,7 +165,11 @@ def test_game_lifecycle_and_combat(client):
     select_army(client, code, bob, [bob_unit["id"]])
 
     client.post(f"/api/games/{code}/ready", headers=alice)
-    started = client.post(f"/api/games/{code}/ready", headers=bob).json()
+    readied = client.post(f"/api/games/{code}/ready", headers=bob).json()
+    # Readying up no longer starts the game; somebody has to press Start.
+    assert readied["status"] == "lobby"
+    assert readied["ready_to_start"] is True
+    started = client.post(f"/api/games/{code}/start", headers=bob).json()
     assert started["status"] == "active"
     assert started["phase_name"] == "Command"
     assert started["active_player_id"] is not None

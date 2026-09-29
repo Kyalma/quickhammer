@@ -82,6 +82,9 @@ def serialize_game(game: Game) -> GameOut:
         pending_attack_id=next(
             (roll.id for roll in game.attack_rolls if not roll.resolved), None
         ),
+        ready_to_start=(
+            game.status == GameStatus.lobby and game_flow.all_ready(game)
+        ),
     )
 
 
@@ -296,9 +299,35 @@ def toggle_ready(
             "Select at least one unit for this game before readying up",
         )
     gp.is_ready = not gp.is_ready
-    # Auto-start once at least two players are all ready.
-    if game_flow.all_ready(game):
-        game_flow.start_game(game)
+    # Deliberately does NOT start the game: any player presses Start once
+    # everyone is ready, so nobody is dropped into round 1 unexpectedly.
+    db.commit()
+    db.refresh(game)
+    return serialize_game(game)
+
+
+@router.post("/{code}/start", response_model=GameOut)
+def start_game(
+    code: str,
+    player: Player = Depends(get_current_player),
+    db: Session = Depends(get_db),
+) -> GameOut:
+    """Begin the match. Any player in the lobby may press this once everyone is
+    ready; there is no privileged host."""
+    game = get_game(code, db)
+    if game.status != GameStatus.lobby:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Game has already started")
+    _membership(game, player)  # members only, any of them
+    if len(game.players) < 2:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "At least two players are needed to start"
+        )
+    if not game_flow.all_ready(game):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Every player must pick an army and ready up before the game can start",
+        )
+    game_flow.start_game(game)
     db.commit()
     db.refresh(game)
     return serialize_game(game)

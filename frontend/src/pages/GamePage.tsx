@@ -63,6 +63,12 @@ export function GamePage() {
 
   // --- Lobby view ---------------------------------------------------------
   if (game.status === "lobby") {
+    const waitingOn = game.players.filter((gp) => !gp.is_ready || gp.army.length === 0);
+    const startHint = game.ready_to_start
+      ? null
+      : waitingOn.length > 0
+        ? `Waiting for ${waitingOn.map((gp) => gp.player.name).join(", ")}.`
+        : "At least two players are needed to start.";
     return (
       <>
         <Typography variant="h5" gutterBottom>
@@ -125,19 +131,41 @@ export function GamePage() {
 
         {me && <ArmySelector code={game.code} me={me} onSaved={setGame} />}
 
-        <Button
-          variant="contained"
-          fullWidth
-          onClick={() => act("ready")}
-          disabled={!me?.is_ready && (me?.army.length ?? 0) === 0}
-        >
-          {me?.is_ready ? "Cancel ready" : "I am ready"}
-        </Button>
-        {!me?.is_ready && (me?.army.length ?? 0) === 0 && (
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
-            Confirm your army before readying up.
-          </Typography>
-        )}
+        <Stack spacing={1}>
+          <Button
+            variant={me?.is_ready ? "outlined" : "contained"}
+            fullWidth
+            onClick={() => act("ready")}
+            disabled={!me?.is_ready && (me?.army.length ?? 0) === 0}
+          >
+            {me?.is_ready ? "Cancel ready" : "I am ready"}
+          </Button>
+          {!me?.is_ready && (me?.army.length ?? 0) === 0 && (
+            <Typography variant="body2" color="text.secondary" align="center">
+              Confirm your army before readying up.
+            </Typography>
+          )}
+
+          {me && (
+            <>
+              {/* Nobody hosts: any player may press this once everyone is ready. */}
+              <Button
+                variant="contained"
+                color="success"
+                fullWidth
+                disabled={!game.ready_to_start}
+                onClick={() => act("start")}
+              >
+                Start game
+              </Button>
+              {startHint && (
+                <Typography variant="body2" color="text.secondary" align="center">
+                  {startHint}
+                </Typography>
+              )}
+            </>
+          )}
+        </Stack>
       </>
     );
   }

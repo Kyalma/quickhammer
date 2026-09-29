@@ -199,6 +199,8 @@ export interface Game {
   active_player_id: number | null;
   players: GamePlayer[];
   pending_attack_id: number | null;
+  /** Server-computed: every player has an army and is ready, so Start is live. */
+  ready_to_start: boolean;
 }
 
 export interface CombatStep {

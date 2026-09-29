@@ -53,7 +53,8 @@ def setup_shooting_game(
     select_army(client, code, alice, [a_unit["id"]])
     select_army(client, code, bob, [b_unit["id"]])
     client.post(f"/api/games/{code}/ready", headers=alice)
-    state = client.post(f"/api/games/{code}/ready", headers=bob).json()
+    client.post(f"/api/games/{code}/ready", headers=bob)
+    state = client.post(f"/api/games/{code}/start", headers=alice).json()
 
     # Command -> Movement -> Shooting
     client.post(f"/api/games/{code}/advance", headers=alice)

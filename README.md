@@ -120,7 +120,9 @@ uploads/              Unit pictures (gitignored; the /data volume in production)
    and the player who opened a game can delete it while it is still Pending.
 4. In the waiting room, pick the army you are fielding: one faction, then one or more
    of its units. Confirm it, then Ready up.
-5. When everyone is ready the game starts. Phases per player turn:
+5. Once every player has an army and has readied up, **Start game** lights up. Any player can
+   press it — there is no host — and nobody is dropped into round 1 unexpectedly. Until then the
+   button is greyed out and names whoever is still holding things up. Phases per player turn:
    Command → Movement → Shooting → Charge → Fight
 6. Record casualties on your own units as they happen, using the **Your army** panel.
 7. In your **Command phase** you gain a Command Point, any Battle-shock on your units wears
@@ -204,7 +206,8 @@ remaining players. Admins cannot delete their own account.
 grouping by faction with points totals per faction and per unit.
 
 **Games** — browse and join from a list, pick one faction and the units you are fielding,
-ready up and auto-start, phase and turn tracking for 2 to 4 players, casualty tracking.
+ready up and start the match on an explicit press by any player, phase and turn tracking for 2 to
+4 players, casualty tracking.
 
 **Rules** — the **Command phase** in full (command points, Below Half-strength, Battle-shock
 tests from your own 2D6 roll) and the **Shooting phase** in full (multi-weapon volleys, the

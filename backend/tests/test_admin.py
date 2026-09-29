@@ -56,6 +56,7 @@ def test_admin_sees_all_games_with_status(client):
     select_army(client, running["code"], bob, [bob_unit["id"]])
     client.post(f"/api/games/{running['code']}/ready", headers=alice)
     client.post(f"/api/games/{running['code']}/ready", headers=bob)
+    client.post(f"/api/games/{running['code']}/start", headers=alice)
 
     response = client.get("/api/admin/games", headers=alice)
     assert response.status_code == 200

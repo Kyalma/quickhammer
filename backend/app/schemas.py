@@ -208,6 +208,9 @@ class GameOut(BaseModel):
     # An attack that has been rolled but not yet confirmed or discarded. The
     # dice themselves are fetched separately to keep the polled payload small.
     pending_attack_id: int | None = None
+    # True when every condition for starting is met, so the lobby can enable its
+    # Start button. Not viewer-relative: any member may press it.
+    ready_to_start: bool = False
 
 
 class JoinGameIn(BaseModel):
