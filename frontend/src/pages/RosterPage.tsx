@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { api } from "../api/client";
 import type { Unit } from "../api/types";
 import { UnitCard } from "../components/UnitCard";
@@ -22,7 +22,6 @@ function groupByFaction(units: Unit[]): [string, Unit[]][] {
 }
 
 export function RosterPage() {
-  const navigate = useNavigate();
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,10 +44,12 @@ export function RosterPage() {
         <Typography variant="h5" sx={{ flexGrow: 1 }}>
           My roster
         </Typography>
-        <Button variant="contained" onClick={() => navigate("/library")}>
+        <Button variant="contained" component={RouterLink} to="/library">
           From library
         </Button>
-        <Button onClick={() => navigate("/units/new")}>New unit</Button>
+        <Button component={RouterLink} to="/units/new">
+          New unit
+        </Button>
       </Stack>
       {error && <Typography color="error">{error}</Typography>}
       {units && units.length === 0 && (
@@ -100,11 +101,7 @@ export function RosterPage() {
               }}
             >
               {factionUnits.map((unit) => (
-                <UnitCard
-                  key={unit.id}
-                  unit={unit}
-                  onClick={() => navigate(`/units/${unit.id}`)}
-                />
+                <UnitCard key={unit.id} unit={unit} to={`/units/${unit.id}`} />
               ))}
             </Box>
           </Box>

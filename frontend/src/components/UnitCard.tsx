@@ -5,6 +5,7 @@ import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { Link as RouterLink } from "react-router-dom";
 import type { Unit } from "../api/types";
 
 /** One statline entry: dim label, bright value. */
@@ -19,9 +20,16 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }) {
+/**
+ * A roster unit. When `to` is given the whole card becomes a real anchor, so
+ * middle-click and ctrl-click open it in a new tab; a `CardActionArea` with an
+ * onClick would render a <button>, which cannot be opened that way.
+ */
+export function UnitCard({ unit, to }: { unit: Unit; to?: string }) {
   const body = (
-    <CardContent>
+    // height: 100% so the clickable area reaches the bottom of a card that the
+    // grid has stretched to match a taller sibling.
+    <CardContent sx={{ height: "100%" }}>
       <Stack direction="row" spacing={1.5}>
         <Box
           component={unit.image_path ? "img" : "div"}
@@ -45,9 +53,19 @@ export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }
         </Box>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
-            <Typography variant="h6">{unit.name}</Typography>
+            {/* minWidth 0 lets a long name shrink and wrap instead of pushing
+                the points chip past the card padding. */}
+            <Typography variant="h6" sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
+              {unit.name}
+            </Typography>
             {unit.points > 0 && (
-              <Chip label={`${unit.points} pts`} size="small" color="primary" variant="outlined" />
+              <Chip
+                label={`${unit.points} pts`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                sx={{ flexShrink: 0 }}
+              />
             )}
           </Stack>
           <Stack direction="row" sx={{ flexWrap: "wrap", columnGap: 1, rowGap: 0.25, mt: 0.5 }}>
@@ -59,7 +77,11 @@ export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }
             <Stat label="OC" value={String(unit.oc)} />
             <Stat label="Models" value={String(unit.model_count)} />
           </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mt: 0.5, overflowWrap: "anywhere" }}
+          >
             {unit.weapons.length > 0
               ? unit.weapons.map((w) => w.name).join(", ")
               : "No weapons yet"}
@@ -70,6 +92,14 @@ export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }
   );
 
   return (
-    <Card>{onClick ? <CardActionArea onClick={onClick}>{body}</CardActionArea> : body}</Card>
+    <Card sx={{ height: "100%" }}>
+      {to ? (
+        <CardActionArea component={RouterLink} to={to} sx={{ height: "100%" }}>
+          {body}
+        </CardActionArea>
+      ) : (
+        body
+      )}
+    </Card>
   );
 }
