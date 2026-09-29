@@ -32,8 +32,11 @@ export function ArmySelector({
   const [faction, setFaction] = useState<string | null>(
     me.army.length > 0 ? me.faction : null,
   );
+  // ArmyUnitSummary carries two ids: `id` is the game_units row, `unit_id` is
+  // the roster Unit. This set holds roster Unit ids, because that is what the
+  // checkboxes match on and what POST /army resolves.
   const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(me.army.map((u) => u.id)),
+    () => new Set(me.army.map((u) => u.unit_id)),
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -80,7 +83,9 @@ export function ArmySelector({
     setSaving(true);
     try {
       const game = await api.post<Game>(`/api/games/${code}/army`, {
-        unit_ids: [...selected],
+        // Send exactly what is ticked on screen, rather than the raw set, so a
+        // selection can never drift from what the player can see.
+        unit_ids: selectedUnits.map((u) => u.id!),
       });
       onSaved(game);
     } catch (err) {

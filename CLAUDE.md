@@ -8,9 +8,22 @@ QuickHammer is a Warhammer 40k (10th edition) tabletop companion web app: player
 
 Deliberate stack decisions (made with the user — do not re-propose alternatives): FastAPI + JSON REST instead of gRPC, SQLite instead of Postgres, polling instead of websockets/streaming for live sync, and **Material UI (MUI v9) with its stock dark palette** for the frontend — the hand-written `styles.css` is gone and there is no custom brand colour.
 
-The project is not under version control yet (no git repo). Feature status and the agreed roadmap live in README.md ("Status & roadmap"). An `openhammer` MCP server (same data as the proxied OpenHammer REST API) is registered in the user's local Claude config for this project and can be used to look up datasheets directly.
+The project is under git on branch `master`; commit or push only when the user asks. Feature status and the agreed roadmap live in README.md ("Status & roadmap"). An `openhammer` MCP server (same data as the proxied OpenHammer REST API) is registered in the user's local Claude config for this project and can be used to look up datasheets directly.
+
+## The user's machine — do not touch
+
+The user keeps their own dev stack running: `uvicorn app.main:app --reload` on **port 8000** (from the repo-root `.venv`) and `npm run dev` on **port 5173**. Treat both, and the database, as off limits.
+
+- **Never kill, stop or restart a process you did not start.** No `Stop-Process`, `taskkill`, or killing "stale" servers, however stale they look. If something you need is blocked, say so and let the user deal with it. When cleaning up your own background processes, match on the specific PID you started, never on a pattern like `uvicorn|vite` that can catch theirs.
+- **Never write to `backend/quickhammer.db`.** It holds the user's real accounts, rosters and uploads. Read-only inspection (`sqlite3`, a `select`) is fine for diagnosis. Never insert, update, delete or migrate it, and never delete rows — even obvious junk — without asking first.
+- **Never bind port 8000 or 5173.** If you need a live server for a check, pick a high unused port and a throwaway `QH_DATABASE_URL`, and point any frontend proxy at it.
+- **Check the port is actually free before binding, and confirm your own process came up.** This is the trap that caused a real incident: a test backend was started on 8000 with `QH_DATABASE_URL` pointing at a scratch database, but the user's server already held the port, so the new process died with `[Errno 10048] error while attempting to bind` — and every request went to *their* server against *their* database, writing four test players, twelve units and four games into it. A `GET /docs` returning 200 proves only that *something* is listening. Verify the server you started is the one answering (a unique port, plus the log line from your own process) before sending it any traffic.
+
+Prefer checks that need no server at all: `pytest` (in-memory SQLite via a `get_db` override), `npm run build` (which includes `tsc --noEmit`), and reading the code. Reach for a live server only when the thing under test is genuinely runtime behaviour, and then isolate it completely.
 
 ## Commands
+
+Assume the user already has both servers running; do not start your own to "check" something.
 
 Backend (from `backend/`, venv at `backend/.venv`):
 
@@ -18,7 +31,7 @@ Backend (from `backend/`, venv at `backend/.venv`):
 .venv\Scripts\python.exe -m pytest -q                      # all tests
 .venv\Scripts\python.exe -m pytest tests/test_combat.py -q # one file
 .venv\Scripts\python.exe -m pytest -q -k "lethal"          # by keyword
-python -m uvicorn app.main:app --reload                    # run server (port 8000)
+python -m uvicorn app.main:app --reload                    # the USER runs this (port 8000) — you do not
 .venv\Scripts\python.exe -m alembic upgrade head           # migrate (also runs on startup)
 python ..\scripts\make_admin.py <name>                     # grant admin (any CWD, any Python)
 ```
@@ -28,13 +41,13 @@ Always launch uvicorn via `python -m uvicorn`, never the bare `uvicorn` command:
 Frontend (from `frontend/`):
 
 ```powershell
-npm run dev     # dev server on 5173, proxies /api and /uploads to :8000
-npm run build   # tsc --noEmit type check + vite build
+npm run dev     # the USER runs this (port 5173), proxying /api and /uploads to :8000
+npm run build   # tsc --noEmit type check + vite build — safe, this is yours to run
 ```
 
 If `npm`/`node` are not found, prepend Node to the shell PATH: `$env:Path = "$env:ProgramFiles\nodejs;$env:APPDATA\npm;$env:Path"`.
 
-Start the backend before the frontend; there is no mocking, every page hits the real API.
+The user starts the backend before the frontend; there is no mocking, so every page hits the real API and therefore the real database. That is exactly why you do not point a test at their stack.
 
 ## Architecture
 
@@ -61,7 +74,7 @@ Game rules implemented so far — **Command phase only** (10th edition), in `ser
 
 Not implemented: the Fight phase (this service should serve it, plus the one-melee-profile rule and Extra Attacks), objectives/VP, Stratagems and CP spending, Desperate Escape, army rules like Oath of Moment, cover and modifiers, BLAST/DEVASTATING WOUNDS/FEEL NO PAIN, range and line of sight, and re-rolls.
 
-Per-game armies: a player picks ONE faction and 1+ of their units of that faction before readying up (`POST /{code}/army` with `unit_ids`; faction is derived from the units and mixing factions is a 422). Selections live in the `game_units` table via `GamePlayer.army`; replacing a selection must `db.delete` + `db.flush()` the old rows before inserting, or the unique constraint trips. The polled game state carries light summaries (`army`, `army_points`, `faction`); `GET /{code}/armies` returns full `UnitOut` data and is what CombatPage uses — only fielded units are selectable in combat, not whole rosters. Armies are locked once the game leaves lobby, and deleting a unit removes it from armies via the `Unit.game_entries` cascade.
+Per-game armies: a player picks ONE faction and 1+ of their units of that faction before readying up (`POST /{code}/army` with `unit_ids`; faction is derived from the units and mixing factions is a 422). Selections live in the `game_units` table via `GamePlayer.army`; replacing a selection must `db.delete` + `db.flush()` the old rows before inserting, or the unique constraint trips. **`ArmyUnitSummary` carries two different ids and mixing them up is a real bug that shipped:** `id` is the `game_units` row (what `/units/{id}/damage`, `/battle-shock` and the shooting endpoints take) while `unit_id` is the roster `Unit` (what `POST /army` resolves and what the roster checkboxes match on). Seeding `ArmySelector`'s selection from `id` meant that leaving the lobby and coming back showed the wrong units ticked and re-confirming 404'd with "One or more units were not found" — and where the two id sequences happened to overlap it silently fielded the *wrong army* instead of erroring. Whenever you read an id off an army entry, say which of the two you mean. The polled game state carries light summaries (`army`, `army_points`, `faction`); `GET /{code}/armies` returns full `UnitOut` data and is what CombatPage uses — only fielded units are selectable in combat, not whole rosters. Armies are locked once the game leaves lobby, and deleting a unit removes it from armies via the `Unit.game_entries` cascade.
 
 Combat math is isolated in `backend/app/services/combat.py` as pure functions with no framework or DB imports — extend keywords/rules there and unit-test in `tests/test_combat.py`. The `/api/combat/resolve` router only loads ORM rows and maps them to `AttackerProfile`/`DefenderProfile` dataclasses. Results are expected values (not dice rolls) returned as a labeled step list the UI renders verbatim.
 
