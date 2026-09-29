@@ -223,6 +223,7 @@ Tunnel, and Alembic migrations that upgrade a live database in place.
 Rough priority order.
 
 #### In-game features
+- Roll-off to determine which player goes first
 - Rules for the Fight phase, then Movement and Charge
 - Objective markers and victory points
 - Stratagems and spending command points
