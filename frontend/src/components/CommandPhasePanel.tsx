@@ -1,3 +1,12 @@
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import { api } from "../api/client";
 import type { ArmyUnitSummary, BattleShockResult, Game, GamePlayer } from "../api/types";
@@ -47,79 +56,89 @@ export function CommandPhasePanel({
   }
 
   return (
-    <div className="card">
-      <h2>Command phase</h2>
-      <p className="result-summary">
-        Command points: <b>{me.command_points}</b>
-      </p>
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          Command phase
+        </Typography>
+        <Typography sx={{ fontSize: "1.1rem" }}>
+          Command points:{" "}
+          <Box component="span" sx={{ color: "primary.main", fontWeight: 700 }}>
+            {me.command_points}
+          </Box>
+        </Typography>
 
-      <h3>Battle-shock</h3>
-      {pending.length === 0 && shocked.length === 0 && (
-        <p className="note">
-          No unit is below half strength, so no Battle-shock tests are needed.
-        </p>
-      )}
+        <Typography variant="subtitle1" sx={{ mt: 1.5, fontWeight: 600 }}>
+          Battle-shock
+        </Typography>
+        {pending.length === 0 && shocked.length === 0 && (
+          <Typography variant="body2" color="text.secondary">
+            No unit is below half strength, so no Battle-shock tests are needed.
+          </Typography>
+        )}
 
-      {pending.map((unit) => {
-        const outcome = outcomes[unit.id];
-        return (
-          <div key={unit.id} className="unit-state">
-            <div className="unit-state-head">
-              <b>{unit.name}</b>
-              <span className="note">
-                {unit.models_remaining} / {unit.model_count} models · Ld {unit.leadership}+
-              </span>
-            </div>
-            {outcome ? (
-              <p className={outcome.passed ? "note" : "error"}>
-                Rolled {outcome.roll} against Ld {outcome.leadership}+:{" "}
-                {outcome.passed ? "passed" : "failed, unit is Battle-shocked"}
-              </p>
-            ) : (
-              <div className="row" style={{ alignItems: "center" }}>
-                <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-                  <label htmlFor={`roll-${unit.id}`}>Your 2D6 roll</label>
-                  <input
-                    id={`roll-${unit.id}`}
-                    type="number"
-                    inputMode="numeric"
-                    min={2}
-                    max={12}
-                    value={rolls[unit.id] ?? ""}
-                    onChange={(e) =>
-                      setRolls((prev) => ({ ...prev, [unit.id]: e.target.value }))
-                    }
-                  />
-                </div>
-                <button
-                  className="primary"
-                  style={{ flex: "0 0 auto" }}
-                  disabled={busyId === unit.id}
-                  onClick={() => test(unit)}
-                >
-                  Test
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+        <Stack divider={<Divider />} spacing={1}>
+          {pending.map((unit) => {
+            const outcome = outcomes[unit.id];
+            return (
+              <Stack key={unit.id} spacing={1} sx={{ pt: 0.5 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                  <Typography sx={{ fontWeight: 700 }}>{unit.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {unit.models_remaining} / {unit.model_count} models · Ld {unit.leadership}+
+                  </Typography>
+                </Stack>
+                {outcome ? (
+                  <Typography
+                    variant="body2"
+                    color={outcome.passed ? "text.secondary" : "error"}
+                  >
+                    Rolled {outcome.roll} against Ld {outcome.leadership}+:{" "}
+                    {outcome.passed ? "passed" : "failed, unit is Battle-shocked"}
+                  </Typography>
+                ) : (
+                  <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                    <TextField
+                      label="Your 2D6 roll"
+                      type="number"
+                      value={rolls[unit.id] ?? ""}
+                      onChange={(e) =>
+                        setRolls((prev) => ({ ...prev, [unit.id]: e.target.value }))
+                      }
+                      slotProps={{ htmlInput: { min: 2, max: 12, inputMode: "numeric" } }}
+                      sx={{ flexGrow: 1 }}
+                    />
+                    <Button
+                      variant="contained"
+                      disabled={busyId === unit.id}
+                      onClick={() => test(unit)}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      Test
+                    </Button>
+                  </Stack>
+                )}
+              </Stack>
+            );
+          })}
+        </Stack>
 
-      {error && <p className="error">{error}</p>}
+        {error && <Typography color="error">{error}</Typography>}
 
-      {shocked.length > 0 && (
-        <>
-          <p className="note" style={{ marginTop: "0.75rem" }}>
-            Battle-shocked until the start of your next Command phase. Objective Control
-            counts as 0, no Stratagems, and Desperate Escape tests when Falling Back.
-          </p>
-          {shocked.map((unit) => (
-            <p key={unit.id}>
-              {unit.name} <span className="ready-pill danger-pill">Battle-shocked</span>
-            </p>
-          ))}
-        </>
-      )}
-    </div>
+        {shocked.length > 0 && (
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+              Battle-shocked until the start of your next Command phase. Objective Control counts
+              as 0, no Stratagems, and Desperate Escape tests when Falling Back.
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 1, mt: 1 }}>
+              {shocked.map((unit) => (
+                <Chip key={unit.id} label={unit.name} size="small" color="error" />
+              ))}
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

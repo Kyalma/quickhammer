@@ -1,5 +1,8 @@
+import Link from "@mui/material/Link";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { AttackRoll } from "../api/types";
 import { DiceRollTrack } from "../components/DiceRollTrack";
@@ -21,26 +24,30 @@ export function AttackViewPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: "center" }}>
-        <h1 style={{ flex: 1 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
+        <Typography variant="h5" sx={{ flexGrow: 1 }}>
           {roll ? `${roll.attacker_name} → ${roll.target_name}` : "Attack"}
-        </h1>
-        <Link to={`/games/${code}`} style={{ flex: "0 0 auto" }}>
+        </Typography>
+        <Link component={RouterLink} to={`/games/${code}`} sx={{ flexShrink: 0 }}>
           ← Back to game
         </Link>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {!roll && !error && <p className="note">Loading the dice…</p>}
+      </Stack>
+      {error && <Typography color="error">{error}</Typography>}
+      {!roll && !error && (
+        <Typography variant="body2" color="text.secondary">
+          Loading the dice…
+        </Typography>
+      )}
       {roll && (
         <>
           <DiceRollTrack rolls={roll.rolls} />
-          <p className="note">
+          <Typography variant="body2" color="text.secondary">
             {roll.resolved
               ? roll.applied
                 ? "This result has been applied."
                 : "This result was discarded."
               : "Waiting for your opponent to confirm."}
-          </p>
+          </Typography>
         </>
       )}
     </>

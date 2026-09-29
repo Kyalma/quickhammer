@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-QuickHammer is a Warhammer 40k (10th edition) tabletop companion web app: player profiles, unit rosters with picture uploads, shared game sessions joined by code, phase tracking, and an A-vs-B expected-value combat calculator. React + TypeScript (Vite) frontend, Python FastAPI backend, SQLite.
+QuickHammer is a Warhammer 40k (10th edition) tabletop companion web app: player profiles, unit rosters with picture uploads, shared game sessions joined by code, phase tracking, and an A-vs-B expected-value combat calculator. React + TypeScript (Vite) frontend on Material UI, Python FastAPI backend, SQLite.
 
-Deliberate stack decisions (made with the user — do not re-propose alternatives): FastAPI + JSON REST instead of gRPC, SQLite instead of Postgres, polling instead of websockets/streaming for live sync, plain CSS with no UI framework.
+Deliberate stack decisions (made with the user — do not re-propose alternatives): FastAPI + JSON REST instead of gRPC, SQLite instead of Postgres, polling instead of websockets/streaming for live sync, and **Material UI (MUI v9) with its stock dark palette** for the frontend — the hand-written `styles.css` is gone and there is no custom brand colour.
 
 The project is not under version control yet (no git repo). Feature status and the agreed roadmap live in README.md ("Status & roadmap"). An `openhammer` MCP server (same data as the proxied OpenHammer REST API) is registered in the user's local Claude config for this project and can be used to look up datasheets directly.
 
@@ -66,6 +66,18 @@ Per-game armies: a player picks ONE faction and 1+ of their units of that factio
 Combat math is isolated in `backend/app/services/combat.py` as pure functions with no framework or DB imports — extend keywords/rules there and unit-test in `tests/test_combat.py`. The `/api/combat/resolve` router only loads ORM rows and maps them to `AttackerProfile`/`DefenderProfile` dataclasses. Results are expected values (not dice rolls) returned as a labeled step list the UI renders verbatim.
 
 Unit library: `/api/library` (router `library.py`) proxies the public OpenHammer datasheet API server-side (base URL/edition in `config.py`, no auth, browser never calls it directly). `services/library.py` holds the pure OpenHammer→QuickHammer mapping (string stats like `'3+'`/`'-1'`/`'Melee'`/`BS 'N/A'` → our ints, values clamped to schema bounds, invalid dice notation falls back to `"1"`); test mapping changes in `tests/test_library.py` against the trimmed real payloads there. Import creates the unit for the current player and the frontend then opens it in the normal editor.
+
+Frontend styling is **Material UI v9** (`@mui/material`, `@emotion/*`, `@mui/icons-material`), themed in `frontend/src/theme.ts`. There is no CSS file at all: `styles.css` was deleted and emotion injects everything at runtime.
+
+- The theme is deliberately thin — `palette: { mode: "dark" }` and nothing else but overrides. Do not add a custom palette or brand colour; the stock dark palette is the agreed look.
+- The only `styleOverrides` are **44px `minHeight` floors** on Button, OutlinedInput, MenuItem and FormControlLabel. This is an iPad/phone app used beside a table and MUI's medium controls are ~36px. Keep them.
+- `MuiButton` defaults to `variant="outlined"`, because every control in this app needs a visible edge; MUI's default `text` variant reads as disabled next to the contained primary actions.
+- **MUI v9 removed system props from components.** `alignItems`, `justifyContent`, `flexWrap`, `fontWeight` and friends are no longer props on `Stack`/`Typography`/`Box` — they must go inside `sx`, or `tsc` fails with a confusing "Property 'component' is missing" overload error. `Stack` accepts only `direction`, `spacing`, `divider`, `useFlexGap`, `sx` and `component`.
+- `TextField` takes `slotProps={{ htmlInput: {...} }}`; the old `inputProps` is gone.
+- A `Tooltip` around a button that can be `disabled` **must** wrap it in a `<span>` or `Box component="span"`. Disabled DOM elements fire no mouse events, so the tooltip silently never appears.
+- Three components keep bespoke geometry on purpose and must not be converted to stock MUI: `DiceRollTrack` (30px square dice in five semantic colours plus a 550ms staged reveal — `Chip` is a pill with its own height contract and `Fade`/`Grow` cannot express a counter-driven cascade), `PhaseTracker` (five equal-flex segments; `Stepper` adds connectors and numbered icons and has no notion of "done" as a colour), and the `.versus` three-column duel grid in `CombatPage` (needs `Box display="grid"` with a `1fr auto 1fr` template, which `Grid` cannot express).
+- `window.confirm` is replaced by `hooks/useConfirm.tsx`, a promise-based `Dialog` so call sites still read `if (!(await confirm({...}))) return;`. Use it for any new destructive action.
+- Breakpoints are MUI defaults: `sm` 600, `md` 900. The nav shows a `Drawer` + hamburger below `md` and a `Tabs` bar at or above it.
 
 Auth is intentionally dependency-free (`backend/app/auth.py`): PBKDF2 password hashes and HMAC-signed `"<player_id>.<signature>"` tokens using `QH_SECRET_KEY`. Routers guard endpoints with the `get_current_player` dependency.
 

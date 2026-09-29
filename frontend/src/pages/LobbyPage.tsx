@@ -1,8 +1,15 @@
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { GAME_STATUS_LABELS, type Game, type GameSummary } from "../api/types";
 import { usePolling } from "../hooks/usePolling";
+import { useConfirm } from "../hooks/useConfirm";
 
 const POLL_MS = 4000;
 
@@ -11,6 +18,7 @@ export function LobbyPage() {
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
 
   const refresh = useCallback(() => {
     api
@@ -48,7 +56,11 @@ export function LobbyPage() {
   }
 
   async function deleteGame(game: GameSummary) {
-    if (!window.confirm(`Delete game ${game.code}? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete game ${game.code}?`,
+      message: "This cannot be undone. Rosters are kept.",
+    });
+    if (!ok) return;
     setError(null);
     setBusy(true);
     try {
@@ -63,72 +75,94 @@ export function LobbyPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: "center", marginBottom: "1rem" }}>
-        <h1 style={{ flex: 1 }}>Play</h1>
-        <button className="primary" style={{ flex: "0 0 auto" }} disabled={busy} onClick={createGame}>
-          + New game
-        </button>
-      </div>
-      {error && <p className="error">{error}</p>}
+      {confirmDialog}
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
+        <Typography variant="h5" sx={{ flexGrow: 1 }}>
+          Play
+        </Typography>
+        <Button variant="contained" disabled={busy} onClick={createGame}>
+          New game
+        </Button>
+      </Stack>
+      {error && <Typography color="error">{error}</Typography>}
 
       {games && games.length === 0 && (
-        <p className="note">No games yet. Create one and share it with your opponents.</p>
+        <Typography variant="body2" color="text.secondary">
+          No games yet. Create one and share it with your opponents.
+        </Typography>
       )}
-      {!games && !error && <p className="note">Loading games…</p>}
+      {!games && !error && (
+        <Typography variant="body2" color="text.secondary">
+          Loading games…
+        </Typography>
+      )}
 
-      {games?.map((game) => (
-        <div className="card" key={game.id}>
-          <div className="unit-state-head">
-            <b>{game.code}</b>
-            <span className={"ready-pill" + (game.status === "active" ? " ready" : "")}>
-              {GAME_STATUS_LABELS[game.status]}
-            </span>
-            {game.is_member && <span className="note">you are in this game</span>}
-          </div>
-          <p className="note">
-            {game.player_count} player{game.player_count === 1 ? "" : "s"}
-            {game.player_names.length > 0 && <>: {game.player_names.join(", ")}</>}
-            {game.creator_name && <> · opened by {game.creator_name}</>}
-            {game.status === "active" && (
-              <> · round {game.current_round}, {game.phase_name}</>
-            )}
-          </p>
-          <div className="row">
-            {game.is_member ? (
-              <button
-                className="primary"
-                style={{ flex: 1 }}
-                onClick={() => navigate(`/games/${game.code}`)}
-              >
-                {game.status === "lobby" ? "Back to lobby" : "Open"}
-              </button>
-            ) : game.can_join ? (
-              <button
-                className="primary"
-                style={{ flex: 1 }}
-                disabled={busy}
-                onClick={() => joinGame(game.code)}
-              >
-                Join
-              </button>
-            ) : (
-              <button style={{ flex: 1 }} disabled>
-                {game.status === "lobby" ? "Full" : "In progress"}
-              </button>
-            )}
-            {game.can_delete && (
-              <button
-                className="danger"
-                style={{ flex: "0 0 auto" }}
-                disabled={busy}
-                onClick={() => deleteGame(game)}
-              >
-                Delete
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
+      <Stack spacing={2}>
+        {games?.map((game) => (
+          <Card key={game.id}>
+            <CardContent>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                <Typography sx={{ fontWeight: 700 }}>{game.code}</Typography>
+                <Chip
+                  label={GAME_STATUS_LABELS[game.status]}
+                  size="small"
+                  color={game.status === "active" ? "success" : "default"}
+                />
+                {game.is_member && (
+                  <Typography variant="body2" color="text.secondary">
+                    you are in this game
+                  </Typography>
+                )}
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                {game.player_count} player{game.player_count === 1 ? "" : "s"}
+                {game.player_names.length > 0 && <>: {game.player_names.join(", ")}</>}
+                {game.creator_name && <> · opened by {game.creator_name}</>}
+                {game.status === "active" && (
+                  <>
+                    {" "}
+                    · round {game.current_round}, {game.phase_name}
+                  </>
+                )}
+              </Typography>
+              <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
+                {game.is_member ? (
+                  <Button
+                    variant="contained"
+                    sx={{ flexGrow: 1 }}
+                    onClick={() => navigate(`/games/${game.code}`)}
+                  >
+                    {game.status === "lobby" ? "Back to lobby" : "Open"}
+                  </Button>
+                ) : game.can_join ? (
+                  <Button
+                    variant="contained"
+                    sx={{ flexGrow: 1 }}
+                    disabled={busy}
+                    onClick={() => joinGame(game.code)}
+                  >
+                    Join
+                  </Button>
+                ) : (
+                  <Button sx={{ flexGrow: 1 }} disabled>
+                    {game.status === "lobby" ? "Full" : "In progress"}
+                  </Button>
+                )}
+                {game.can_delete && (
+                  <Button
+                    color="error"
+                    disabled={busy}
+                    onClick={() => deleteGame(game)}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+        ))}
+      </Stack>
     </>
   );
 }

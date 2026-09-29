@@ -1,37 +1,75 @@
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import CardActionArea from "@mui/material/CardActionArea";
+import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import type { Unit } from "../api/types";
 
-export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }) {
+/** One statline entry: dim label, bright value. */
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      className="card unit-card"
-      onClick={onClick}
-      style={onClick ? { cursor: "pointer" } : undefined}
-    >
-      {unit.image_path ? (
-        <img src={unit.image_path} alt={unit.name} />
-      ) : (
-        <div className="placeholder">⚔</div>
-      )}
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
-          <h2>{unit.name}</h2>
-          {unit.points > 0 && <span className="points-badge">{unit.points} pts</span>}
-        </div>
-        <div className="statline">
-          <span>M <b>{unit.movement}"</b></span>
-          <span>T <b>{unit.toughness}</b></span>
-          <span>Sv <b>{unit.save}+</b></span>
-          {unit.invuln_save != null && <span>Inv <b>{unit.invuln_save}++</b></span>}
-          <span>W <b>{unit.wounds}</b></span>
-          <span>OC <b>{unit.oc}</b></span>
-          <span>Models <b>{unit.model_count}</b></span>
-        </div>
-        <p className="note">
-          {unit.weapons.length > 0
-            ? unit.weapons.map((w) => w.name).join(", ")
-            : "No weapons yet"}
-        </p>
-      </div>
-    </div>
+    <Typography variant="body2" color="text.secondary" component="span">
+      {label}{" "}
+      <Box component="span" sx={{ color: "text.primary", fontWeight: 600 }}>
+        {value}
+      </Box>
+    </Typography>
+  );
+}
+
+export function UnitCard({ unit, onClick }: { unit: Unit; onClick?: () => void }) {
+  const body = (
+    <CardContent>
+      <Stack direction="row" spacing={1.5}>
+        <Box
+          component={unit.image_path ? "img" : "div"}
+          src={unit.image_path ?? undefined}
+          alt={unit.image_path ? unit.name : undefined}
+          sx={{
+            width: 72,
+            height: 72,
+            flexShrink: 0,
+            borderRadius: 1,
+            objectFit: "cover",
+            bgcolor: "action.hover",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "text.secondary",
+            fontSize: "1.5rem",
+          }}
+        >
+          {unit.image_path ? undefined : "⚔"}
+        </Box>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
+            <Typography variant="h6">{unit.name}</Typography>
+            {unit.points > 0 && (
+              <Chip label={`${unit.points} pts`} size="small" color="primary" variant="outlined" />
+            )}
+          </Stack>
+          <Stack direction="row" sx={{ flexWrap: "wrap", columnGap: 1, rowGap: 0.25, mt: 0.5 }}>
+            <Stat label="M" value={`${unit.movement}"`} />
+            <Stat label="T" value={String(unit.toughness)} />
+            <Stat label="Sv" value={`${unit.save}+`} />
+            {unit.invuln_save != null && <Stat label="Inv" value={`${unit.invuln_save}++`} />}
+            <Stat label="W" value={String(unit.wounds)} />
+            <Stat label="OC" value={String(unit.oc)} />
+            <Stat label="Models" value={String(unit.model_count)} />
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {unit.weapons.length > 0
+              ? unit.weapons.map((w) => w.name).join(", ")
+              : "No weapons yet"}
+          </Typography>
+        </Box>
+      </Stack>
+    </CardContent>
+  );
+
+  return (
+    <Card>{onClick ? <CardActionArea onClick={onClick}>{body}</CardActionArea> : body}</Card>
   );
 }

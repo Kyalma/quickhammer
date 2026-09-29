@@ -1,5 +1,14 @@
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { LibraryFaction, LibraryUnitSummary, Unit } from "../api/types";
 
@@ -16,7 +25,8 @@ export function LibraryPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<LibraryFaction[]>("/api/library/factions")
+    api
+      .get<LibraryFaction[]>("/api/library/factions")
       .then(setFactions)
       .catch((e) => setError(e.message));
   }, []);
@@ -29,7 +39,8 @@ export function LibraryPage() {
       const params = new URLSearchParams();
       if (search.trim()) params.set("search", search.trim());
       if (faction) params.set("faction", faction);
-      api.get<LibraryUnitSummary[]>(`/api/library/units?${params}`)
+      api
+        .get<LibraryUnitSummary[]>(`/api/library/units?${params}`)
         .then(setResults)
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
@@ -52,68 +63,96 @@ export function LibraryPage() {
 
   return (
     <>
-      <h1>Unit library</h1>
-      <p className="note">
-        Search official 40k datasheets and add them to your roster. Imported units open
-        in the editor, so you can tweak stats or <Link to="/units/new">build one from scratch</Link>.
-      </p>
+      <Typography variant="h5" gutterBottom>
+        Unit library
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Search official 40k datasheets and add them to your roster. Imported units open in the
+        editor, so you can tweak stats or{" "}
+        <Link component={RouterLink} to="/units/new">
+          build one from scratch
+        </Link>
+        .
+      </Typography>
 
-      <div className="card">
-        <div className="row">
-          <div className="field" style={{ flex: 2 }}>
-            <label htmlFor="lib-search">Search units</label>
-            <input
-              id="lib-search"
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+            <TextField
+              label="Search units"
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="e.g. intercessor, boyz, wraith…"
+              sx={{ flex: 2 }}
+              fullWidth
             />
-          </div>
-          <div className="field">
-            <label htmlFor="lib-faction">Faction</label>
-            <select id="lib-faction" value={faction} onChange={(e) => setFaction(e.target.value)}>
-              <option value="">All factions</option>
+            <TextField
+              select
+              label="Faction"
+              value={faction}
+              onChange={(e) => setFaction(e.target.value)}
+              sx={{ flex: 1 }}
+              fullWidth
+            >
+              <MenuItem value="">All factions</MenuItem>
               {factions.map((f) => (
-                <option key={f.name} value={f.name}>
+                <MenuItem key={f.name} value={f.name}>
                   {f.name} ({f.unit_count})
-                </option>
+                </MenuItem>
               ))}
-            </select>
-          </div>
-        </div>
-      </div>
+            </TextField>
+          </Stack>
+        </CardContent>
+      </Card>
 
-      {error && <p className="error">{error}</p>}
-      {loading && <p className="note">Searching…</p>}
+      {error && <Typography color="error">{error}</Typography>}
+      {loading && (
+        <Typography variant="body2" color="text.secondary">
+          Searching…
+        </Typography>
+      )}
       {results && results.length === 0 && !loading && (
-        <p className="note">No units match. Try a shorter search or another faction.</p>
+        <Typography variant="body2" color="text.secondary">
+          No units match. Try a shorter search or another faction.
+        </Typography>
       )}
 
-      {results?.map((entry) => (
-        <div className="card row" key={entry.id} style={{ alignItems: "center" }}>
-          <div style={{ flex: 3 }}>
-            <b>{entry.name}</b>
-            <p className="note">
-              {entry.faction}
-              {entry.points != null && <> · {entry.points} pts</>}
-              {entry.min_models != null && entry.max_models != null && (
-                <> · {entry.min_models === entry.max_models
-                  ? `${entry.min_models} model${entry.min_models > 1 ? "s" : ""}`
-                  : `${entry.min_models}–${entry.max_models} models`}</>
-              )}
-            </p>
-          </div>
-          <button
-            className="primary"
-            style={{ flex: "0 0 auto" }}
-            disabled={importingId !== null}
-            onClick={() => importUnit(entry)}
-          >
-            {importingId === entry.id ? "Importing…" : "Import"}
-          </button>
-        </div>
-      ))}
+      <Stack spacing={2}>
+        {results?.map((entry) => (
+          <Card key={entry.id}>
+            <CardContent>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 700 }}>
+                    {entry.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {entry.faction}
+                    {entry.points != null && <> · {entry.points} pts</>}
+                    {entry.min_models != null && entry.max_models != null && (
+                      <>
+                        {" · "}
+                        {entry.min_models === entry.max_models
+                          ? `${entry.min_models} model${entry.min_models > 1 ? "s" : ""}`
+                          : `${entry.min_models}–${entry.max_models} models`}
+                      </>
+                    )}
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  disabled={importingId !== null}
+                  onClick={() => importUnit(entry)}
+                  sx={{ flexShrink: 0 }}
+                >
+                  {importingId === entry.id ? "Importing…" : "Import"}
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
+        ))}
+      </Stack>
     </>
   );
 }

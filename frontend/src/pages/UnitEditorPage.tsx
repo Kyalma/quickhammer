@@ -1,29 +1,24 @@
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import MenuItem from "@mui/material/MenuItem";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { emptyUnit, emptyWeapon, type Unit, type Weapon } from "../api/types";
+import { NumberField } from "../components/NumberField";
+import { useConfirm } from "../hooks/useConfirm";
 
-function NumberField({
-  label, value, onChange, min = 0, max = 99,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  max?: number;
-}) {
+/** Fields that sit side by side on a tablet and stack on a phone. */
+function FieldRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="field">
-      <label>{label}</label>
-      <input
-        type="number"
-        inputMode="numeric"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </div>
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 1.5 }}>
+      {children}
+    </Stack>
   );
 }
 
@@ -34,7 +29,9 @@ export function UnitEditorPage() {
   const [unit, setUnit] = useState<Unit>(emptyUnit());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pictureName, setPictureName] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
     if (!isNew) {
@@ -87,200 +84,288 @@ export function UnitEditorPage() {
   }
 
   async function remove() {
-    if (!window.confirm(`Delete ${unit.name || "this unit"}?`)) return;
+    const ok = await confirm({
+      title: `Delete ${unit.name || "this unit"}?`,
+      message: "The unit is removed from your roster and from any army it was fielded in.",
+    });
+    if (!ok) return;
     await api.delete(`/api/units/${unitId}`);
     navigate("/roster");
   }
 
   return (
     <form onSubmit={save}>
-      <h1>{isNew ? "New unit" : `Edit ${unit.name}`}</h1>
-      {error && <p className="error">{error}</p>}
+      {confirmDialog}
+      <Typography variant="h5" gutterBottom>
+        {isNew ? "New unit" : `Edit ${unit.name}`}
+      </Typography>
+      {error && <Typography color="error">{error}</Typography>}
 
-      <div className="card">
-        <div className="field">
-          <label>Unit name</label>
-          <input
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <TextField
+            label="Unit name"
             value={unit.name}
             onChange={(e) => patch({ name: e.target.value })}
             required
             placeholder="e.g. Intercessor Squad"
+            fullWidth
+            sx={{ mb: 1.5 }}
           />
-        </div>
-        <div className="row">
-          <div className="field" style={{ flex: 2 }}>
-            <label>Faction</label>
-            <input
+          <FieldRow>
+            <TextField
+              label="Faction"
               value={unit.faction}
               onChange={(e) => patch({ faction: e.target.value })}
               placeholder="e.g. Space Marines"
+              fullWidth
+              sx={{ flex: 2 }}
             />
-          </div>
-          <NumberField label="Points" value={unit.points} onChange={(v) => patch({ points: v })} max={10000} />
-        </div>
-        <div className="field">
-          <label>Keywords (comma-separated; MONSTER and VEHICLE may fire pistols with other weapons)</label>
-          <input
+            <Box sx={{ flex: 1 }}>
+              <NumberField
+                label="Points"
+                value={unit.points}
+                onChange={(v) => patch({ points: v })}
+                max={10000}
+              />
+            </Box>
+          </FieldRow>
+          <TextField
+            label="Keywords (comma-separated)"
+            helperText="MONSTER and VEHICLE may fire pistols alongside their other weapons."
             value={unit.keywords.join(",")}
             onChange={(e) => patch({ keywords: e.target.value.split(",") })}
             placeholder="Infantry, Battleline, Imperium"
+            fullWidth
+            sx={{ mb: 1.5 }}
           />
-        </div>
-        <div className="field">
-          <label>Picture</label>
-          {unit.image_path && (
-            <img
-              src={unit.image_path}
-              alt={unit.name}
-              style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 10, display: "block", marginBottom: 8 }}
+
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1.5 }}>
+            {unit.image_path && (
+              <Box
+                component="img"
+                src={unit.image_path}
+                alt={unit.name}
+                sx={{ width: 96, height: 96, objectFit: "cover", borderRadius: 1 }}
+              />
+            )}
+            <Box>
+              <Button component="label" variant="outlined">
+                {unit.image_path ? "Replace picture" : "Choose picture"}
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  hidden
+                  onChange={(e) => setPictureName(e.target.files?.[0]?.name ?? null)}
+                />
+              </Button>
+              {pictureName && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {pictureName} — uploads when you save
+                </Typography>
+              )}
+            </Box>
+          </Stack>
+
+          <Typography variant="h6" gutterBottom>
+            Statline
+          </Typography>
+          <FieldRow>
+            <NumberField
+              label={'Movement (")'}
+              value={unit.movement}
+              onChange={(v) => patch({ movement: v })}
+              max={30}
             />
-          )}
-          <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
-        </div>
-        <h2>Statline</h2>
-        <div className="row">
-          <NumberField label='Movement (")' value={unit.movement} onChange={(v) => patch({ movement: v })} max={30} />
-          <NumberField label="Toughness" value={unit.toughness} onChange={(v) => patch({ toughness: v })} min={1} max={16} />
-          <NumberField label="Save (X+)" value={unit.save} onChange={(v) => patch({ save: v })} min={2} max={7} />
-        </div>
-        <div className="row">
-          <div className="field">
-            <label>Invulnerable save (X++, blank = none)</label>
-            <input
-              type="number"
-              inputMode="numeric"
+            <NumberField
+              label="Toughness"
+              value={unit.toughness}
+              onChange={(v) => patch({ toughness: v })}
+              min={1}
+              max={16}
+            />
+            <NumberField
+              label="Save (X+)"
+              value={unit.save}
+              onChange={(v) => patch({ save: v })}
               min={2}
-              max={6}
+              max={7}
+            />
+          </FieldRow>
+          <FieldRow>
+            <TextField
+              label="Invulnerable save (X++)"
+              helperText="Blank means none"
+              type="number"
               value={unit.invuln_save ?? ""}
               onChange={(e) =>
                 patch({ invuln_save: e.target.value === "" ? null : Number(e.target.value) })
               }
+              slotProps={{ htmlInput: { min: 2, max: 6, inputMode: "numeric" } }}
+              fullWidth
             />
-          </div>
-          <NumberField label="Wounds / model" value={unit.wounds} onChange={(v) => patch({ wounds: v })} min={1} max={40} />
-          <NumberField label="Models" value={unit.model_count} onChange={(v) => patch({ model_count: v })} min={1} max={30} />
-        </div>
-        <div className="row">
-          <NumberField label="Leadership" value={unit.leadership} onChange={(v) => patch({ leadership: v })} min={4} max={10} />
-          <NumberField label="OC" value={unit.oc} onChange={(v) => patch({ oc: v })} max={10} />
-        </div>
-      </div>
+            <NumberField
+              label="Wounds / model"
+              value={unit.wounds}
+              onChange={(v) => patch({ wounds: v })}
+              min={1}
+              max={40}
+            />
+            <NumberField
+              label="Models"
+              value={unit.model_count}
+              onChange={(v) => patch({ model_count: v })}
+              min={1}
+              max={30}
+            />
+          </FieldRow>
+          <FieldRow>
+            <NumberField
+              label="Leadership"
+              value={unit.leadership}
+              onChange={(v) => patch({ leadership: v })}
+              min={4}
+              max={10}
+            />
+            <NumberField label="OC" value={unit.oc} onChange={(v) => patch({ oc: v })} max={10} />
+          </FieldRow>
+        </CardContent>
+      </Card>
 
-      <h2>Weapons</h2>
+      <Typography variant="h6" gutterBottom>
+        Weapons
+      </Typography>
       {unit.weapons.map((weapon, index) => (
-        <div className="card" key={index}>
-          <div className="row">
-            <div className="field" style={{ flex: 2 }}>
-              <label>Weapon name</label>
-              <input
+        <Card key={index} sx={{ mb: 2 }}>
+          <CardContent>
+            <FieldRow>
+              <TextField
+                label="Weapon name"
                 value={weapon.name}
                 onChange={(e) => patchWeapon(index, { name: e.target.value })}
                 required
                 placeholder="e.g. Bolt rifle"
+                fullWidth
+                sx={{ flex: 2 }}
               />
-            </div>
-            <div className="field">
-              <label>Type</label>
-              <select
+              <TextField
+                select
+                label="Type"
                 value={weapon.kind}
-                onChange={(e) => patchWeapon(index, { kind: e.target.value as Weapon["kind"] })}
+                onChange={(e) =>
+                  patchWeapon(index, { kind: e.target.value as Weapon["kind"] })
+                }
+                fullWidth
+                sx={{ flex: 1 }}
               >
-                <option value="ranged">Ranged</option>
-                <option value="melee">Melee</option>
-              </select>
-            </div>
-          </div>
-          <div className="row">
-            <NumberField label='Range (")' value={weapon.range} onChange={(v) => patchWeapon(index, { range: v })} max={120} />
-            <div className="field">
-              <label>Attacks (e.g. 2, D6, D6+1)</label>
-              <input
+                <MenuItem value="ranged">Ranged</MenuItem>
+                <MenuItem value="melee">Melee</MenuItem>
+              </TextField>
+            </FieldRow>
+            <FieldRow>
+              <NumberField
+                label={'Range (")'}
+                value={weapon.range}
+                onChange={(v) => patchWeapon(index, { range: v })}
+                max={120}
+              />
+              <TextField
+                label="Attacks"
+                helperText="e.g. 2, D6, D6+1"
                 value={weapon.attacks}
                 onChange={(e) => patchWeapon(index, { attacks: e.target.value })}
                 placeholder="D6+1"
                 required
+                fullWidth
               />
-            </div>
-            <NumberField
-              label={weapon.kind === "ranged" ? "BS (X+)" : "WS (X+)"}
-              value={weapon.skill}
-              onChange={(v) => patchWeapon(index, { skill: v })}
-              min={2}
-              max={6}
-            />
-          </div>
-          <div className="row">
-            <NumberField label="Strength" value={weapon.strength} onChange={(v) => patchWeapon(index, { strength: v })} min={1} max={24} />
-            <div className="field">
-              <label>AP (0 to -6)</label>
-              <input
+              <NumberField
+                label={weapon.kind === "ranged" ? "BS (X+)" : "WS (X+)"}
+                value={weapon.skill}
+                onChange={(v) => patchWeapon(index, { skill: v })}
+                min={2}
+                max={6}
+              />
+            </FieldRow>
+            <FieldRow>
+              <NumberField
+                label="Strength"
+                value={weapon.strength}
+                onChange={(v) => patchWeapon(index, { strength: v })}
+                min={1}
+                max={24}
+              />
+              <TextField
+                label="AP (0 to -6)"
                 type="number"
-                inputMode="numeric"
-                min={-6}
-                max={0}
                 value={weapon.ap === 0 ? 0 : -weapon.ap}
                 onChange={(e) =>
                   // Displayed in 40k notation (-2); stored as a positive number.
                   patchWeapon(index, { ap: Math.min(6, Math.abs(Number(e.target.value))) })
                 }
+                slotProps={{ htmlInput: { min: -6, max: 0, inputMode: "numeric" } }}
+                fullWidth
               />
-            </div>
-            <div className="field">
-              <label>Damage (e.g. 1, D3, D6+2)</label>
-              <input
+              <TextField
+                label="Damage"
+                helperText="e.g. 1, D3, D6+2"
                 value={weapon.damage}
                 onChange={(e) => patchWeapon(index, { damage: e.target.value })}
                 placeholder="D3"
                 required
+                fullWidth
               />
-            </div>
-          </div>
-          <div className="field">
-            <label>Keywords (comma-separated: SUSTAINED HITS 1, LETHAL HITS, TORRENT, PISTOL)</label>
-            <input
+            </FieldRow>
+            <TextField
+              label="Keywords (comma-separated)"
+              helperText="SUSTAINED HITS 1, LETHAL HITS, TORRENT, PISTOL"
               value={weapon.keywords.join(",")}
               onChange={(e) =>
                 // Split without trimming so a trailing comma survives while
                 // typing; keywords are cleaned up on save.
                 patchWeapon(index, { keywords: e.target.value.split(",") })
               }
+              fullWidth
+              sx={{ mb: 1.5 }}
             />
-          </div>
-          <NumberField
-            label="Models carrying this (0 = all)"
-            value={weapon.carrier_count}
-            onChange={(v) => patchWeapon(index, { carrier_count: v })}
-            max={30}
-          />
-          <button
-            type="button"
-            className="danger"
-            onClick={() =>
-              setUnit((u) => ({ ...u, weapons: u.weapons.filter((_, i) => i !== index) }))
-            }
-          >
-            Remove weapon
-          </button>
-        </div>
+            <Box sx={{ mb: 1.5, maxWidth: { sm: 280 } }}>
+              <NumberField
+                label="Models carrying this (0 = all)"
+                value={weapon.carrier_count}
+                onChange={(v) => patchWeapon(index, { carrier_count: v })}
+                max={30}
+              />
+            </Box>
+            <Button
+              type="button"
+              color="error"
+              onClick={() =>
+                setUnit((u) => ({ ...u, weapons: u.weapons.filter((_, i) => i !== index) }))
+              }
+            >
+              Remove weapon
+            </Button>
+          </CardContent>
+        </Card>
       ))}
-      <button
+      <Button
         type="button"
         onClick={() => setUnit((u) => ({ ...u, weapons: [...u.weapons, emptyWeapon()] }))}
-        style={{ marginBottom: "1rem" }}
+        sx={{ mb: 2 }}
       >
-        + Add weapon
-      </button>
+        Add weapon
+      </Button>
 
-      <div className="row">
-        <button className="primary" type="submit" disabled={busy}>
+      <Stack direction="row" spacing={1.5}>
+        <Button variant="contained" type="submit" disabled={busy}>
           {busy ? "Saving…" : "Save unit"}
-        </button>
+        </Button>
         {!isNew && (
-          <button type="button" className="danger" onClick={remove}>
+          <Button type="button" color="error" onClick={remove}>
             Delete unit
-          </button>
+          </Button>
         )}
-      </div>
+      </Stack>
     </form>
   );
 }

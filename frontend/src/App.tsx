@@ -1,3 +1,4 @@
+import Typography from "@mui/material/Typography";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { useAuth } from "./context/AuthContext";
@@ -13,7 +14,7 @@ import { UnitEditorPage } from "./pages/UnitEditorPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { player, loading } = useAuth();
-  if (loading) return <p className="note">Loading…</p>;
+  if (loading) return <Typography color="text.secondary">Loading…</Typography>;
   if (!player) return <Navigate to="/login" replace />;
   return children;
 }

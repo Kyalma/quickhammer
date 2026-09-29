@@ -1,3 +1,10 @@
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Link from "@mui/material/Link";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -27,54 +34,56 @@ export function LoginPage() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 420, margin: "2rem auto" }}>
-      <h1>{mode === "login" ? "Log in" : "Create your profile"}</h1>
-      <form onSubmit={submit}>
-        <div className="field">
-          <label htmlFor="name">Player name</label>
-          <input
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="username"
-            required
-            minLength={2}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            required
-            minLength={4}
-          />
-        </div>
-        {error && <p className="error">{error}</p>}
-        <button className="primary" type="submit" disabled={busy} style={{ width: "100%" }}>
-          {mode === "login" ? "Log in" : "Register"}
-        </button>
-      </form>
-      <p style={{ marginTop: "1rem" }}>
-        {mode === "login" ? (
-          <>
-            New here?{" "}
-            <a href="#" onClick={(e) => { e.preventDefault(); setMode("register"); }}>
-              Create a profile
-            </a>
-          </>
-        ) : (
-          <>
-            Already have a profile?{" "}
-            <a href="#" onClick={(e) => { e.preventDefault(); setMode("login"); }}>
-              Log in
-            </a>
-          </>
-        )}
-      </p>
-    </div>
+    <Card sx={{ maxWidth: 420, mx: "auto", mt: 4 }}>
+      <CardContent>
+        <Typography variant="h5" gutterBottom>
+          {mode === "login" ? "Log in" : "Create your profile"}
+        </Typography>
+        <form onSubmit={submit}>
+          <Stack spacing={2}>
+            <TextField
+              label="Player name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="username"
+              required
+              slotProps={{ htmlInput: { minLength: 2 } }}
+              fullWidth
+            />
+            <TextField
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              required
+              slotProps={{ htmlInput: { minLength: 4 } }}
+              fullWidth
+            />
+            {error && <Typography color="error">{error}</Typography>}
+            <Button variant="contained" type="submit" disabled={busy} fullWidth>
+              {mode === "login" ? "Log in" : "Register"}
+            </Button>
+          </Stack>
+        </form>
+        <Typography sx={{ mt: 2 }}>
+          {mode === "login" ? (
+            <>
+              New here?{" "}
+              <Link component="button" type="button" onClick={() => setMode("register")}>
+                Create a profile
+              </Link>
+            </>
+          ) : (
+            <>
+              Already have a profile?{" "}
+              <Link component="button" type="button" onClick={() => setMode("login")}>
+                Log in
+              </Link>
+            </>
+          )}
+        </Typography>
+      </CardContent>
+    </Card>
   );
 }

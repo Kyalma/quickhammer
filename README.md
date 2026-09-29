@@ -10,7 +10,7 @@ searchable by name and faction.
 
 ## Stack
 
-- **Frontend:** React + TypeScript (Vite), plain CSS, mobile-first
+- **Frontend:** React + TypeScript (Vite), Material UI (dark theme), mobile-first
 - **Backend:** Python 3 + FastAPI, SQLite via SQLAlchemy, Alembic migrations
 - **Live sync:** clients poll the game-state endpoint every few seconds
 
@@ -99,12 +99,13 @@ backend/
   tests/
 frontend/
   src/
+    theme.ts          MUI theme: stock dark palette + 44px touch targets
     api/              fetch client + shared types
     context/          auth state
-    hooks/            usePolling
-    components/       Layout, UnitCard, PhaseTracker, ArmySelector,
-                      ArmyStatusPanel, CommandPhasePanel, DiceRollTrack,
-                      DiceMathBreakdown
+    hooks/            usePolling, useConfirm (promise-based confirm Dialog)
+    components/       Layout, NumberField, UnitCard, PhaseTracker,
+                      ArmySelector, ArmyStatusPanel, CommandPhasePanel,
+                      DiceRollTrack, DiceMathBreakdown
     pages/            Login, Roster, UnitEditor, Library, Lobby, Game,
                       Combat, AttackView, Admin
 uploads/              Unit pictures (gitignored; the /data volume in production)
@@ -159,33 +160,6 @@ To try it locally first:
 $env:QH_SECRET_KEY = "<long random string>"; docker compose up --build
 # open http://localhost:8000
 ```
-
-### 2. Add the container on Unraid
-
-Docker tab → **Add Container**:
-
-| Setting | Value |
-|---|---|
-| Repository | `<dockerhub-user>/quickhammer:latest` |
-| Port | host `8040` (any free port) → container `8000` (fixed) |
-| Path | host `/mnt/user/appdata/quickhammer` → container `/data` |
-| Variable | `QH_SECRET_KEY` = a long random string |
-
-`QH_SECRET_KEY` signs the login tokens. Generate it once (e.g. `openssl rand -hex 32`)
-and never change it, or every player gets logged out.
-
-### 3. Cloudflare Tunnel
-
-1. Cloudflare dashboard → Zero Trust → Networks → Tunnels → **Create a tunnel** (Cloudflared), copy the token.
-2. On Unraid, install **cloudflared** from Community Apps and paste the token
-   (or run `cloudflare/cloudflared:latest` with `tunnel run --token <token>`).
-3. In the tunnel's **Public Hostnames**, add `quickhammer.<yourdomain>` →
-   service `http://<unraid-lan-ip>:8040` (the host port you mapped, not the
-   container's 8000).
-
-Cloudflare terminates TLS and the tunnel connects outbound, so no ports are
-forwarded and your home IP stays private. The app is then live at
-`https://quickhammer.<yourdomain>`.
 
 ### Updating
 

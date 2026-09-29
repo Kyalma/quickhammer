@@ -1,5 +1,16 @@
+import CasinoIcon from "@mui/icons-material/Casino";
+import GpsFixedIcon from "@mui/icons-material/GpsFixed";
+import SportsMmaIcon from "@mui/icons-material/SportsMma";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
+import Link from "@mui/material/Link";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { factionLabel, PHASES, type Game } from "../api/types";
 import { ArmySelector } from "../components/ArmySelector";
@@ -25,8 +36,14 @@ export function GamePage() {
     game?.status !== "finished",
   );
 
-  if (error) return <p className="error">{error}</p>;
-  if (!game || !player) return <p className="note">Loading game…</p>;
+  if (error) return <Typography color="error">{error}</Typography>;
+  if (!game || !player) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        Loading game…
+      </Typography>
+    );
+  }
 
   const me = game.players.find((gp) => gp.player.id === player.id);
   const isMyTurn = game.active_player_id === player.id;
@@ -48,47 +65,78 @@ export function GamePage() {
   if (game.status === "lobby") {
     return (
       <>
-        <h1>Waiting for players</h1>
-        <div className="card" style={{ textAlign: "center" }}>
-          <p className="note">Share this code with your opponents:</p>
-          <span className="code-badge">{game.code}</span>
-        </div>
-        <div className="card">
-          {game.players.map((gp) => (
-            <p key={gp.player.id}>
-              {gp.player.name}{" "}
-              <span className={"ready-pill" + (gp.is_ready ? " ready" : "")}>
-                {gp.is_ready ? "Ready" : "Not ready"}
-              </span>
-              {gp.army.length > 0 && (
-                <span className="note">
-                  {" "}
-                  — {factionLabel(gp.faction)}, {gp.army.length} unit
-                  {gp.army.length === 1 ? "" : "s"}
-                  {gp.army_points > 0 && <> · {gp.army_points} pts</>}
-                </span>
+        <Typography variant="h5" gutterBottom>
+          Waiting for players
+        </Typography>
+        <Card sx={{ mb: 2 }}>
+          <CardContent sx={{ textAlign: "center" }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Share this code with your opponents:
+            </Typography>
+            <Box
+              sx={{
+                display: "inline-block",
+                fontFamily: "ui-monospace, Consolas, monospace",
+                fontSize: "1.6rem",
+                letterSpacing: "0.3em",
+                bgcolor: "action.hover",
+                px: 1.5,
+                py: 0.75,
+                borderRadius: 1,
+              }}
+            >
+              {game.code}
+            </Box>
+          </CardContent>
+        </Card>
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Stack spacing={1}>
+              {game.players.map((gp) => (
+                <Stack
+                  key={gp.player.id}
+                  direction="row"
+                  spacing={1}
+                  sx={{ alignItems: "center", flexWrap: "wrap" }}
+                >
+                  <Typography>{gp.player.name}</Typography>
+                  <Chip
+                    label={gp.is_ready ? "Ready" : "Not ready"}
+                    size="small"
+                    color={gp.is_ready ? "success" : "default"}
+                  />
+                  {gp.army.length > 0 && (
+                    <Typography variant="body2" color="text.secondary">
+                      {factionLabel(gp.faction)}, {gp.army.length} unit
+                      {gp.army.length === 1 ? "" : "s"}
+                      {gp.army_points > 0 && <> · {gp.army_points} pts</>}
+                    </Typography>
+                  )}
+                </Stack>
+              ))}
+              {game.players.length < 2 && (
+                <Typography variant="body2" color="text.secondary">
+                  At least two players are needed to start.
+                </Typography>
               )}
-            </p>
-          ))}
-          {game.players.length < 2 && (
-            <p className="note">At least two players are needed to start.</p>
-          )}
-        </div>
+            </Stack>
+          </CardContent>
+        </Card>
 
         {me && <ArmySelector code={game.code} me={me} onSaved={setGame} />}
 
-        <button
-          className="primary"
+        <Button
+          variant="contained"
+          fullWidth
           onClick={() => act("ready")}
-          style={{ width: "100%" }}
           disabled={!me?.is_ready && (me?.army.length ?? 0) === 0}
         >
-          {me?.is_ready ? "Cancel ready" : "I'm ready"}
-        </button>
+          {me?.is_ready ? "Cancel ready" : "I am ready"}
+        </Button>
         {!me?.is_ready && (me?.army.length ?? 0) === 0 && (
-          <p className="note" style={{ textAlign: "center" }}>
+          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
             Confirm your army before readying up.
-          </p>
+          </Typography>
         )}
       </>
     );
@@ -98,10 +146,15 @@ export function GamePage() {
   if (game.status === "finished") {
     return (
       <>
-        <h1>Game over</h1>
-        <p>
-          This match has ended. <Link to="/lobby">Back to the lobby</Link>
-        </p>
+        <Typography variant="h5" gutterBottom>
+          Game over
+        </Typography>
+        <Typography>
+          This match has ended.{" "}
+          <Link component={RouterLink} to="/lobby">
+            Back to the lobby
+          </Link>
+        </Typography>
       </>
     );
   }
@@ -109,20 +162,29 @@ export function GamePage() {
   // --- Active game ----------------------------------------------------------
   return (
     <>
-      <div className="row" style={{ alignItems: "center" }}>
-        <h1 style={{ flex: 1 }}>Round {game.current_round}</h1>
-        <span className="note" style={{ flex: "0 0 auto" }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        <Typography variant="h5" sx={{ flexGrow: 1 }}>
+          Round {game.current_round}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
           Game {game.code}
-        </span>
-      </div>
-      <p>
+        </Typography>
+      </Stack>
+      <Typography>
         {isMyTurn ? (
-          <b>Your turn</b>
+          <Box component="span" sx={{ fontWeight: 700 }}>
+            Your turn
+          </Box>
         ) : (
-          <>Waiting for <b>{activePlayer?.player.name ?? "…"}</b></>
+          <>
+            Waiting for{" "}
+            <Box component="span" sx={{ fontWeight: 700 }}>
+              {activePlayer?.player.name ?? "…"}
+            </Box>
+          </>
         )}{" "}
         — {phaseName} Phase
-      </p>
+      </Typography>
       <PhaseTracker current={game.current_phase} />
 
       {me && isMyTurn && phaseName === "Command" && (
@@ -130,50 +192,72 @@ export function GamePage() {
       )}
 
       {combatPhase && isMyTurn && (
-        <Link to={`/games/${game.code}/combat`}>
-          <button className="primary" style={{ width: "100%", marginBottom: "1rem" }}>
-            {phaseName === "Shooting" ? "🎯 Shoot" : "⚔ Resolve an attack"}
-          </button>
-        </Link>
+        <Button
+          variant="contained"
+          fullWidth
+          component={RouterLink}
+          to={`/games/${game.code}/combat`}
+          startIcon={phaseName === "Shooting" ? <GpsFixedIcon /> : <SportsMmaIcon />}
+          sx={{ mb: 2 }}
+        >
+          {phaseName === "Shooting" ? "Shoot" : "Resolve an attack"}
+        </Button>
       )}
 
       {game.pending_attack_id !== null && !isMyTurn && (
-        <div className="card">
-          <p>
-            <b>{activePlayer?.player.name ?? "Your opponent"}</b> is resolving an attack.
-          </p>
-          <Link to={`/games/${game.code}/attacks/${game.pending_attack_id}`}>
-            <button style={{ width: "100%" }}>Watch the dice</button>
-          </Link>
-        </div>
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography gutterBottom>
+              <Box component="span" sx={{ fontWeight: 700 }}>
+                {activePlayer?.player.name ?? "Your opponent"}
+              </Box>{" "}
+              is resolving an attack.
+            </Typography>
+            <Button
+              fullWidth
+              component={RouterLink}
+              to={`/games/${game.code}/attacks/${game.pending_attack_id}`}
+              startIcon={<CasinoIcon />}
+            >
+              Watch the dice
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {isMyTurn && (
-        <button onClick={() => act("advance")} style={{ width: "100%" }}>
-          {game.current_phase === PHASES.length - 1 ? "End my turn" : `Next phase →`}
-        </button>
+        <Button fullWidth onClick={() => act("advance")} sx={{ mb: 2 }}>
+          {game.current_phase === PHASES.length - 1 ? "End my turn" : "Next phase →"}
+        </Button>
       )}
 
       {me && <ArmyStatusPanel code={game.code} me={me} onChange={setGame} />}
 
-      <div className="card" style={{ marginTop: "1rem" }}>
-        <h2>Players</h2>
-        {game.players.map((gp) => (
-          <p key={gp.player.id}>
-            {gp.player.name}
-            {gp.player.id === game.active_player_id && " ← active"}
-            <span className="note">
-              {" "}
-              — {factionLabel(gp.faction)}, {gp.army.filter((u) => !u.is_destroyed).length}/
-              {gp.army.length} unit{gp.army.length === 1 ? "" : "s"} left
-              {gp.army_points > 0 && <> · {gp.army_points} pts</>} · {gp.command_points} CP
-            </span>
-          </p>
-        ))}
-        <button className="danger" onClick={() => act("finish")} style={{ marginTop: "0.5rem" }}>
-          End game
-        </button>
-      </div>
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Players
+          </Typography>
+          <Stack spacing={0.5}>
+            {game.players.map((gp) => (
+              <Typography key={gp.player.id}>
+                {gp.player.name}
+                {gp.player.id === game.active_player_id && " ← active"}
+                <Typography variant="body2" color="text.secondary" component="span">
+                  {" — "}
+                  {factionLabel(gp.faction)},{" "}
+                  {gp.army.filter((u) => !u.is_destroyed).length}/{gp.army.length} unit
+                  {gp.army.length === 1 ? "" : "s"} left
+                  {gp.army_points > 0 && <> · {gp.army_points} pts</>} · {gp.command_points} CP
+                </Typography>
+              </Typography>
+            ))}
+          </Stack>
+          <Button color="error" onClick={() => act("finish")} sx={{ mt: 1.5 }}>
+            End game
+          </Button>
+        </CardContent>
+      </Card>
     </>
   );
 }

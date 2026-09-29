@@ -1,3 +1,16 @@
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Checkbox from "@mui/material/Checkbox";
+import FormControl from "@mui/material/FormControl";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormLabel from "@mui/material/FormLabel";
+import Paper from "@mui/material/Paper";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { factionLabel, type Game, type GamePlayer, type Unit } from "../api/types";
@@ -77,91 +90,134 @@ export function ArmySelector({
     }
   }
 
-  if (error && !units) return <p className="error">{error}</p>;
-  if (!units) return <p className="note">Loading your roster…</p>;
+  if (error && !units) return <Typography color="error">{error}</Typography>;
+  if (!units) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        Loading your roster…
+      </Typography>
+    );
+  }
 
   if (units.length === 0) {
     return (
-      <div className="card">
-        <h2>Your army</h2>
-        <p className="note">
-          Your roster is empty. Add units in Roster before joining a game.
-        </p>
-      </div>
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Your army
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Your roster is empty. Add units in Roster before joining a game.
+          </Typography>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="card">
-      <h2>Your army</h2>
-      <p className="note">Pick one faction, then the units you are fielding.</p>
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Typography variant="h6" gutterBottom>
+          Your army
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Pick one faction, then the units you are fielding.
+        </Typography>
 
-      <fieldset className="pick-group">
-        <legend>Faction</legend>
-        {byFaction.map(([value, factionsUnits]) => (
-          <label key={value} className="pick-row">
-            <input
-              type="radio"
-              name="faction"
-              checked={faction === value}
-              onChange={() => chooseFaction(value)}
-            />
-            <span>
-              {factionLabel(value)}{" "}
-              <span className="note">
-                ({factionsUnits.length} unit{factionsUnits.length > 1 ? "s" : ""})
-              </span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
-
-      {faction !== null && (
-        <fieldset className="pick-group">
-          <legend>
-            Units{" "}
-            <button
-              type="button"
-              className="link-button"
-              onClick={() =>
-                setSelected(allSelected ? new Set() : new Set(factionUnits.map((u) => u.id!)))
-              }
+        <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
+          <FormControl>
+            <FormLabel id="faction-label">Faction</FormLabel>
+            <RadioGroup
+              aria-labelledby="faction-label"
+              value={faction ?? ""}
+              onChange={(e) => chooseFaction(e.target.value)}
             >
-              {allSelected ? "clear all" : "select all"}
-            </button>
-          </legend>
-          {factionUnits.map((unit) => (
-            <label key={unit.id} className="pick-row">
-              <input
-                type="checkbox"
-                checked={selected.has(unit.id!)}
-                onChange={() => toggleUnit(unit.id!)}
-              />
-              <span>
-                {unit.name}
-                {unit.points > 0 && <span className="note"> · {unit.points} pts</span>}
-              </span>
-            </label>
-          ))}
-        </fieldset>
-      )}
+              {byFaction.map(([value, factionsUnits]) => (
+                <FormControlLabel
+                  key={value}
+                  value={value}
+                  control={<Radio />}
+                  label={
+                    <>
+                      {factionLabel(value)}{" "}
+                      <Typography variant="body2" color="text.secondary" component="span">
+                        ({factionsUnits.length} unit{factionsUnits.length > 1 ? "s" : ""})
+                      </Typography>
+                    </>
+                  }
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
+        </Paper>
 
-      {error && <p className="error">{error}</p>}
+        {faction !== null && (
+          <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 0.5 }}>
+              <FormLabel sx={{ flexGrow: 1 }}>Units</FormLabel>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() =>
+                  setSelected(
+                    allSelected ? new Set() : new Set(factionUnits.map((u) => u.id!)),
+                  )
+                }
+              >
+                {allSelected ? "Clear all" : "Select all"}
+              </Button>
+            </Stack>
+            <Stack>
+              {factionUnits.map((unit) => (
+                <FormControlLabel
+                  key={unit.id}
+                  control={
+                    <Checkbox
+                      checked={selected.has(unit.id!)}
+                      onChange={() => toggleUnit(unit.id!)}
+                    />
+                  }
+                  label={
+                    <>
+                      {unit.name}
+                      {unit.points > 0 && (
+                        <Typography variant="body2" color="text.secondary" component="span">
+                          {" "}
+                          · {unit.points} pts
+                        </Typography>
+                      )}
+                    </>
+                  }
+                />
+              ))}
+            </Stack>
+          </Paper>
+        )}
 
-      <div className="row" style={{ alignItems: "center" }}>
-        <span style={{ flex: 1 }}>
-          {selectedUnits.length} unit{selectedUnits.length === 1 ? "" : "s"}
-          {totalPoints > 0 && <> · <b>{totalPoints} pts</b></>}
-        </span>
-        <button
-          className="primary"
-          style={{ flex: "0 0 auto" }}
-          disabled={saving || selectedUnits.length === 0}
-          onClick={save}
-        >
-          {saving ? "Saving…" : "Confirm army"}
-        </button>
-      </div>
-    </div>
+        {error && <Typography color="error">{error}</Typography>}
+
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <Typography sx={{ flexGrow: 1 }}>
+            {selectedUnits.length} unit{selectedUnits.length === 1 ? "" : "s"}
+            {totalPoints > 0 && (
+              <>
+                {" · "}
+                <Box component="span" sx={{ color: "primary.main", fontWeight: 700 }}>
+                  {totalPoints} pts
+                </Box>
+              </>
+            )}
+          </Typography>
+          <Button
+            variant="contained"
+            disabled={saving || selectedUnits.length === 0}
+            onClick={save}
+            sx={{ flexShrink: 0 }}
+          >
+            {saving ? "Saving…" : "Confirm army"}
+          </Button>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

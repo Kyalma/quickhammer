@@ -1,5 +1,20 @@
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Checkbox from "@mui/material/Checkbox";
+import Chip from "@mui/material/Chip";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormLabel from "@mui/material/FormLabel";
+import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import {
   ignoresPistolRule,
@@ -163,30 +178,33 @@ export function CombatPage() {
   if (roll) {
     return (
       <>
-        <h1>
+        <Typography variant="h5" gutterBottom>
           {roll.attacker_name} → {roll.target_name}
-        </h1>
-        {error && <p className="error">{error}</p>}
+        </Typography>
+        {error && <Typography color="error">{error}</Typography>}
         <DiceRollTrack rolls={roll.rolls} />
-        <div className="row">
-          <button
-            className="primary"
-            style={{ flex: 2 }}
+        <Stack direction="row" spacing={1.5}>
+          <Button
+            variant="contained"
+            sx={{ flex: 2 }}
             disabled={busy}
             onClick={() => finish("confirm")}
           >
             {busy ? "Applying…" : "Confirm and apply"}
-          </button>
-          <button
-            className="danger"
-            style={{ flex: 1 }}
-            disabled={busy}
-            onClick={() => finish("discard")}
-            title="Throw this result away and give the unit its shot back."
-          >
-            Discard
-          </button>
-        </div>
+          </Button>
+          <Tooltip title="Throw this result away and give the unit its shot back.">
+            <Box component="span" sx={{ flex: 1, display: "flex" }}>
+              <Button
+                color="error"
+                fullWidth
+                disabled={busy}
+                onClick={() => finish("discard")}
+              >
+                Discard
+              </Button>
+            </Box>
+          </Tooltip>
+        </Stack>
       </>
     );
   }
@@ -196,131 +214,174 @@ export function CombatPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: "center" }}>
-        <h1 style={{ flex: 1 }}>{isShooting ? "Shoot" : "Fight"}</h1>
-        <Link to={`/games/${code}`} style={{ flex: "0 0 auto" }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1 }}>
+        <Typography variant="h5" sx={{ flexGrow: 1 }}>
+          {isShooting ? "Shoot" : "Fight"}
+        </Typography>
+        <Link component={RouterLink} to={`/games/${code}`} sx={{ flexShrink: 0 }}>
           ← Back to game
         </Link>
-      </div>
+      </Stack>
       {!isShooting && (
-        <p className="note">
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Rolled dice are only built for the Shooting phase so far. Work out the odds here, then
           record the casualties yourself in the <b>Your army</b> panel.
-        </p>
+        </Typography>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <Typography color="error">{error}</Typography>}
 
-      <div className="versus">
-        <div className="card">
-          <h2>Attacker (you)</h2>
-          <div className="field">
-            <label>Unit</label>
-            <select value={attackerId} onChange={(e) => pickAttacker(e.target.value)}>
-              <option value="">Choose a unit…</option>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "1fr auto 1fr" },
+          alignItems: "start",
+        }}
+      >
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Attacker (you)
+            </Typography>
+            <TextField
+              select
+              label="Unit"
+              value={attackerId}
+              onChange={(e) => pickAttacker(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">Choose a unit…</MenuItem>
               {myUnits.map((u) => (
-                <option
+                <MenuItem
                   key={u.id}
                   value={u.id}
                   disabled={state.get(u.id!)?.is_destroyed || state.get(u.id!)?.has_shot}
                 >
                   {u.name}
                   {condition(u.id)}
-                </option>
+                </MenuItem>
               ))}
-            </select>
-          </div>
+            </TextField>
 
-          {attacker && (
-            <fieldset className="pick-group">
-              <legend>{isShooting ? "Weapons firing" : "Melee weapons"}</legend>
-              {usableWeapons.length === 0 && (
-                <p className="note">
-                  This unit has no {isShooting ? "ranged" : "melee"} weapons.
-                </p>
-              )}
-              {usableWeapons.map((w) => (
-                <label key={w.id} className="pick-row">
-                  <input
-                    type="checkbox"
-                    checked={weaponIds.has(w.id!)}
-                    onChange={() => toggleWeapon(w.id!)}
-                  />
-                  <span>
-                    {w.name}
-                    {isPistol(w) && <span className="ready-pill"> Pistol</span>}
-                    <span className="note">
-                      {" "}
-                      S{w.strength} AP{w.ap === 0 ? "0" : `-${w.ap}`} D{w.damage} ·{" "}
-                      {w.attacks} attacks ·{" "}
-                      {w.carrier_count === 0
-                        ? "all models"
-                        : `${w.carrier_count} model${w.carrier_count === 1 ? "" : "s"}`}
-                    </span>
-                  </span>
-                </label>
-              ))}
-              {isShooting && (
-                <p className="note">
-                  {freeToMix
-                    ? "Monsters and Vehicles may fire pistols alongside everything else."
-                    : "A model fires either its pistols or its other weapons, never both."}
-                </p>
-              )}
-            </fieldset>
-          )}
-          {mixesPistols && (
-            <p className="error">
-              Pistols cannot be fired together with other weapons.
-            </p>
-          )}
-          {attackerState?.has_shot && (
-            <p className="error">This unit has already shot this phase.</p>
-          )}
-        </div>
+            {attacker && (
+              <Paper variant="outlined" sx={{ p: 1.5, mt: 1.5 }}>
+                <FormLabel>{isShooting ? "Weapons firing" : "Melee weapons"}</FormLabel>
+                {usableWeapons.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    This unit has no {isShooting ? "ranged" : "melee"} weapons.
+                  </Typography>
+                )}
+                <Stack>
+                  {usableWeapons.map((w) => (
+                    <FormControlLabel
+                      key={w.id}
+                      control={
+                        <Checkbox
+                          checked={weaponIds.has(w.id!)}
+                          onChange={() => toggleWeapon(w.id!)}
+                        />
+                      }
+                      label={
+                        <>
+                          {w.name}
+                          {isPistol(w) && (
+                            <Chip label="Pistol" size="small" sx={{ ml: 0.5 }} />
+                          )}
+                          <Typography variant="body2" color="text.secondary" component="span">
+                            {" "}
+                            S{w.strength} AP{w.ap === 0 ? "0" : `-${w.ap}`} D{w.damage} ·{" "}
+                            {w.attacks} attacks ·{" "}
+                            {w.carrier_count === 0
+                              ? "all models"
+                              : `${w.carrier_count} model${w.carrier_count === 1 ? "" : "s"}`}
+                          </Typography>
+                        </>
+                      }
+                    />
+                  ))}
+                </Stack>
+                {isShooting && (
+                  <Typography variant="body2" color="text.secondary">
+                    {freeToMix
+                      ? "Monsters and Vehicles may fire pistols alongside everything else."
+                      : "A model fires either its pistols or its other weapons, never both."}
+                  </Typography>
+                )}
+              </Paper>
+            )}
+            {mixesPistols && (
+              <Typography color="error" sx={{ mt: 1 }}>
+                Pistols cannot be fired together with other weapons.
+              </Typography>
+            )}
+            {attackerState?.has_shot && (
+              <Typography color="error" sx={{ mt: 1 }}>
+                This unit has already shot this phase.
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
 
-        <div className="vs-label">VS</div>
+        <Typography
+          variant="h6"
+          align="center"
+          sx={{ alignSelf: "center", color: "primary.main", fontWeight: 800 }}
+        >
+          VS
+        </Typography>
 
-        <div className="card">
-          <h2>Target</h2>
-          <div className="field">
-            <label>Enemy unit</label>
-            <select
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Target
+            </Typography>
+            <TextField
+              select
+              label="Enemy unit"
               value={defenderId}
               onChange={(e) => {
                 setDefenderId(e.target.value === "" ? "" : Number(e.target.value));
                 setPreview(null);
               }}
+              fullWidth
             >
-              <option value="">Choose a target…</option>
+              <MenuItem value="">Choose a target…</MenuItem>
               {enemyUnits.map((u) => (
-                <option key={u.id} value={u.id} disabled={state.get(u.id!)?.is_destroyed}>
+                <MenuItem key={u.id} value={u.id} disabled={state.get(u.id!)?.is_destroyed}>
                   {u.name} (T{u.toughness} Sv{u.save}+ W{u.wounds}x{u.model_count})
                   {condition(u.id)}
-                </option>
+                </MenuItem>
               ))}
-            </select>
-          </div>
-          {enemyUnits.length === 0 && (
-            <p className="note">No opposing units have been fielded in this game.</p>
-          )}
-        </div>
-      </div>
+            </TextField>
+            {enemyUnits.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                No opposing units have been fielded in this game.
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
+      </Box>
 
-      <div className="row" style={{ margin: "1rem 0" }}>
-        <button
-          className={isShooting ? undefined : "primary"}
-          style={{ flex: 1 }}
+      <Stack direction="row" spacing={1.5} sx={{ my: 2 }}>
+        <Button
+          variant={isShooting ? "outlined" : "contained"}
+          sx={{ flex: 1 }}
           disabled={busy || !ready}
           onClick={showPreview}
         >
           {isShooting ? "Preview odds" : "Work out the odds"}
-        </button>
+        </Button>
         {isShooting && (
-          <button className="primary" style={{ flex: 2 }} disabled={busy || !ready} onClick={rollAttack}>
+          <Button
+            variant="contained"
+            sx={{ flex: 2 }}
+            disabled={busy || !ready}
+            onClick={rollAttack}
+          >
             {busy ? "Rolling…" : "🎲 Roll to hit"}
-          </button>
+          </Button>
         )}
-      </div>
+      </Stack>
 
       {preview?.map((result, i) => (
         <DiceMathBreakdown key={i} result={result} />
